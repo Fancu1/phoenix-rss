@@ -5,7 +5,10 @@ import (
 	"os"
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
+	"github.com/Fancu1/phoenix-rss/internal/core"
+	"github.com/Fancu1/phoenix-rss/internal/repository"
 	"github.com/Fancu1/phoenix-rss/internal/server"
+	"github.com/Fancu1/phoenix-rss/internal/worker"
 )
 
 func main() {
@@ -15,7 +18,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	srv := server.New(cfg)
+	feedRepo := repository.NewFeedRepository()
+	articleRepo := repository.NewArticleRepository()
+	articleSvc := core.NewArticleService(feedRepo, articleRepo)
+
+	dispatcher := worker.NewDispatcher(100, 5, articleSvc)
+	dispatcher.Start()
+
+	srv := server.New(cfg, dispatcher)
 	if err := srv.Start(); err != nil {
 		fmt.Printf("Failed to start server: %v\n", err)
 		os.Exit(1)

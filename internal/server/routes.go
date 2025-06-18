@@ -10,6 +10,11 @@ func (s *Server) setupRoutes() {
 		apiV1.GET("/health", handler.HealthCheck)
 
 		// feeds
+		apiV1.GET("/feeds", s.feedHandler.ListAllFeeds)
 		apiV1.POST("/feeds", s.feedHandler.AddFeed)
+		apiV1.POST("/feeds/:feed_id/fetch", s.articleHandler.TriggerFetch)
+
+		// articles
+		apiV1.GET("/feeds/:feed_id/articles", s.articleHandler.ListArticles)
 	}
 }

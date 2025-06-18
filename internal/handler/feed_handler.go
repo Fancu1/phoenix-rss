@@ -35,3 +35,12 @@ func (h *FeedHandler) AddFeed(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, feed)
 }
+
+func (h *FeedHandler) ListAllFeeds(c *gin.Context) {
+	feeds, err := h.feedService.ListAllFeeds()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	}
+
+	c.JSON(http.StatusOK, feeds)
+}

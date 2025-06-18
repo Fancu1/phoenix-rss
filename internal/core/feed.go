@@ -44,3 +44,11 @@ func (s *FeedService) AddFeedByURL(ctx context.Context, url string) (*models.Fee
 
 	return createdFeed, nil
 }
+
+func (s *FeedService) ListAllFeeds() ([]*models.Feed, error) {
+	feeds, err := s.repo.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all feeds: %w", err)
+	}
+	return feeds, nil
+}

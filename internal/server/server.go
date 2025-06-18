@@ -9,22 +9,31 @@ import (
 	"github.com/Fancu1/phoenix-rss/internal/core"
 	"github.com/Fancu1/phoenix-rss/internal/handler"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
+	"github.com/Fancu1/phoenix-rss/internal/worker"
 )
 
 type Server struct {
-	config      *config.Config
-	engine      *gin.Engine
-	feedHandler *handler.FeedHandler
+	config         *config.Config
+	engine         *gin.Engine
+	feedHandler    *handler.FeedHandler
+	articleHandler *handler.ArticleHandler
 }
 
-func New(cfg *config.Config) *Server {
+func New(cfg *config.Config, dispatcher *worker.Dispatcher) *Server {
 	feedRepo := repository.NewFeedRepository() // db options
+	articleRepo := repository.NewArticleRepository()
+
 	feedService := core.NewFeedService(feedRepo)
+	articleService := core.NewArticleService(feedRepo, articleRepo)
+
+	feedHandler := handler.NewFeedHandler(feedService)
+	articleHandler := handler.NewArticleHandler(articleService, dispatcher)
 
 	s := &Server{
-		config:      cfg,
-		engine:      gin.Default(),
-		feedHandler: handler.NewFeedHandler(feedService),
+		config:         cfg,
+		engine:         gin.Default(),
+		feedHandler:    feedHandler,
+		articleHandler: articleHandler,
 	}
 
 	s.setupRoutes()
