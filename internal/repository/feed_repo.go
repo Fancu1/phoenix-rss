@@ -1,61 +1,34 @@
 package repository
 
 import (
-	"fmt"
-	"sync"
-	"time"
+	"gorm.io/gorm"
 
 	"github.com/Fancu1/phoenix-rss/internal/models"
 )
 
 type FeedRepository struct {
-	mu      sync.RWMutex
-	feeds   map[uint]*models.Feed
-	counter uint
+	db *gorm.DB
 }
 
-func NewFeedRepository() *FeedRepository {
+func NewFeedRepository(db *gorm.DB) *FeedRepository {
 	return &FeedRepository{
-		feeds:   make(map[uint]*models.Feed),
-		counter: 0,
+		db: db,
 	}
 }
 
 func (r *FeedRepository) Create(feed *models.Feed) (*models.Feed, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.counter++
-	feed.ID = r.counter
-	feed.CreatedAt = time.Now()
-	feed.UpdatedAt = time.Now()
-	r.feeds[feed.ID] = feed
-
-	return feed, nil
+	result := r.db.Create(feed)
+	return feed, result.Error
 }
 
 func (r *FeedRepository) ListAll() ([]*models.Feed, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	if len(r.feeds) == 0 {
-		return []*models.Feed{}, nil
-	}
-
-	feeds := make([]*models.Feed, 0, len(r.feeds))
-	for _, feed := range r.feeds {
-		feeds = append(feeds, feed)
-	}
-	return feeds, nil
+	feeds := make([]*models.Feed, 0)
+	result := r.db.Find(&feeds)
+	return feeds, result.Error
 }
 
 func (r *FeedRepository) GetByID(id uint) (*models.Feed, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	feed, ok := r.feeds[id]
-	if !ok {
-		return nil, fmt.Errorf("feed not found")
-	}
-	return feed, nil
+	feed := &models.Feed{}
+	result := r.db.First(feed, id)
+	return feed, result.Error
 }

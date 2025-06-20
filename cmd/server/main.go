@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/core"
@@ -18,14 +19,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	feedRepo := repository.NewFeedRepository()
-	articleRepo := repository.NewArticleRepository()
+	time.Sleep(2 * time.Second)
+
+	db := repository.InitDB(&cfg.Database)
+
+	feedRepo := repository.NewFeedRepository(db)
+	articleRepo := repository.NewArticleRepository(db)
+
+	feedSrv := core.NewFeedService(feedRepo)
 	articleSvc := core.NewArticleService(feedRepo, articleRepo)
 
 	dispatcher := worker.NewDispatcher(100, 5, articleSvc)
 	dispatcher.Start()
 
-	srv := server.New(cfg, dispatcher)
+	srv := server.New(cfg, feedSrv, articleSvc, dispatcher)
 	if err := srv.Start(); err != nil {
 		fmt.Printf("Failed to start server: %v\n", err)
 		os.Exit(1)

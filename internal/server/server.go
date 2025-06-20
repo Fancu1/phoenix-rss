@@ -8,7 +8,6 @@ import (
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/core"
 	"github.com/Fancu1/phoenix-rss/internal/handler"
-	"github.com/Fancu1/phoenix-rss/internal/repository"
 	"github.com/Fancu1/phoenix-rss/internal/worker"
 )
 
@@ -19,13 +18,7 @@ type Server struct {
 	articleHandler *handler.ArticleHandler
 }
 
-func New(cfg *config.Config, dispatcher *worker.Dispatcher) *Server {
-	feedRepo := repository.NewFeedRepository() // db options
-	articleRepo := repository.NewArticleRepository()
-
-	feedService := core.NewFeedService(feedRepo)
-	articleService := core.NewArticleService(feedRepo, articleRepo)
-
+func New(cfg *config.Config, feedService *core.FeedService, articleService *core.ArticleService, dispatcher *worker.Dispatcher) *Server {
 	feedHandler := handler.NewFeedHandler(feedService)
 	articleHandler := handler.NewArticleHandler(articleService, dispatcher)
 

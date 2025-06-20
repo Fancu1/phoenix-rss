@@ -1,60 +1,33 @@
 package repository
 
 import (
-	"sync"
-	"time"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/Fancu1/phoenix-rss/internal/models"
 )
 
 type ArticleRepository struct {
-	mu       sync.RWMutex
-	articles map[uint]*models.Article
-	counter  uint
+	db *gorm.DB
 }
 
-func NewArticleRepository() *ArticleRepository {
+func NewArticleRepository(db *gorm.DB) *ArticleRepository {
 	return &ArticleRepository{
-		articles: make(map[uint]*models.Article),
-		counter:  0,
+		db: db,
 	}
 }
 
 func (r *ArticleRepository) Create(article *models.Article) (*models.Article, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	result := r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "url"}},
+		DoNothing: true,
+	}).Create(article)
 
-	// if article already exists, update it
-	for _, existingArticle := range r.articles {
-		if existingArticle.URL == article.URL {
-			existingArticle.Title = article.Title
-			existingArticle.Description = article.Description
-			existingArticle.Content = article.Content
-			existingArticle.UpdatedAt = time.Now()
-			return existingArticle, nil
-		}
-	}
-
-	// create new article
-	r.counter++
-	article.ID = r.counter
-	article.CreatedAt = time.Now()
-	article.UpdatedAt = time.Now()
-	r.articles[article.ID] = article
-
-	return article, nil
+	return article, result.Error
 }
 
 func (r *ArticleRepository) ListByFeedID(feedID uint) ([]*models.Article, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
 	articles := []*models.Article{}
-	for _, article := range r.articles {
-		if article.FeedID == feedID {
-			articles = append(articles, article)
-		}
-	}
-
-	return articles, nil
+	result := r.db.Where("feed_id = ?", feedID).Find(&articles)
+	return articles, result.Error
 }

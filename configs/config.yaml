@@ -1,2 +1,10 @@
 server:
   port: 8080
+
+database:
+  host: "127.0.0.1"
+  port: 15432
+  user: "postgres"
+  password: "password"
+  database: "phoenix_rss"
+  sslmode: "disable"
