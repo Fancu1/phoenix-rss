@@ -1,24 +1,28 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hibiken/asynq"
 
 	"github.com/Fancu1/phoenix-rss/internal/core"
-	"github.com/Fancu1/phoenix-rss/internal/worker"
+	"github.com/Fancu1/phoenix-rss/internal/tasks"
 )
 
 type ArticleHandler struct {
+	logger     *slog.Logger
+	taskClient *asynq.Client
 	service    *core.ArticleService
-	dispatcher *worker.Dispatcher
 }
 
-func NewArticleHandler(service *core.ArticleService, dispatcher *worker.Dispatcher) *ArticleHandler {
+func NewArticleHandler(logger *slog.Logger, taskClient *asynq.Client, articleService *core.ArticleService) *ArticleHandler {
 	return &ArticleHandler{
-		service:    service,
-		dispatcher: dispatcher,
+		logger:     logger,
+		taskClient: taskClient,
+		service:    articleService,
 	}
 }
 
@@ -30,10 +34,21 @@ func (h *ArticleHandler) TriggerFetch(c *gin.Context) {
 		return
 	}
 
-	job := worker.Job{FeedID: uint(id)}
-	h.dispatcher.AddJob(job)
+	task, err := tasks.NewFeedFetchTask(uint(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-	c.JSON(http.StatusAccepted, gin.H{"message": "Feed fetch job accepted"})
+	info, err := h.taskClient.EnqueueContext(c.Request.Context(), task)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	h.logger.Info("feed fetch job enqueued", "feed_id", id, "task_id", info.ID)
+
+	c.JSON(http.StatusAccepted, gin.H{"message": "Feed fetch job accepted", "task_id": info.ID})
 }
 
 func (h *ArticleHandler) ListArticles(c *gin.Context) {

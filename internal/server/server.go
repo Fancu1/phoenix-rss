@@ -2,25 +2,27 @@ package server
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hibiken/asynq"
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/core"
 	"github.com/Fancu1/phoenix-rss/internal/handler"
-	"github.com/Fancu1/phoenix-rss/internal/worker"
 )
 
 type Server struct {
 	config         *config.Config
 	engine         *gin.Engine
+	logger         *slog.Logger
 	feedHandler    *handler.FeedHandler
 	articleHandler *handler.ArticleHandler
 }
 
-func New(cfg *config.Config, feedService *core.FeedService, articleService *core.ArticleService, dispatcher *worker.Dispatcher) *Server {
+func New(cfg *config.Config, logger *slog.Logger, taskClient *asynq.Client, feedService *core.FeedService, articleService *core.ArticleService) *Server {
 	feedHandler := handler.NewFeedHandler(feedService)
-	articleHandler := handler.NewArticleHandler(articleService, dispatcher)
+	articleHandler := handler.NewArticleHandler(logger, taskClient, articleService)
 
 	s := &Server{
 		config:         cfg,

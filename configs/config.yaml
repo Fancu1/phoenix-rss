@@ -8,3 +8,6 @@ database:
   password: "password"
   database: "phoenix_rss"
   sslmode: "disable"
+
+redis:
+  address: "127.0.0.1:6379"

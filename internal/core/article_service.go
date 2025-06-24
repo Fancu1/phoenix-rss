@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -15,13 +16,15 @@ type ArticleService struct {
 	parser      *gofeed.Parser
 	feedRepo    *repository.FeedRepository
 	articleRepo *repository.ArticleRepository
+	logger      *slog.Logger
 }
 
-func NewArticleService(feedRepo *repository.FeedRepository, articleRepo *repository.ArticleRepository) *ArticleService {
+func NewArticleService(feedRepo *repository.FeedRepository, articleRepo *repository.ArticleRepository, logger *slog.Logger) *ArticleService {
 	return &ArticleService{
 		parser:      gofeed.NewParser(),
 		feedRepo:    feedRepo,
 		articleRepo: articleRepo,
+		logger:      logger,
 	}
 }
 
@@ -55,7 +58,7 @@ func (s *ArticleService) FetchAndSaveArticles(ctx context.Context, feedID uint) 
 
 		saved, err := s.articleRepo.Create(article)
 		if err != nil {
-			fmt.Printf("failed to save article: %v\n", err)
+			s.logger.Error("failed to save article, error: %w", err)
 			continue
 		}
 		savedArticles = append(savedArticles, saved)

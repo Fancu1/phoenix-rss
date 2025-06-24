@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/hibiken/asynq"
 
@@ -11,7 +13,7 @@ import (
 	"github.com/Fancu1/phoenix-rss/internal/core"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
-	"github.com/Fancu1/phoenix-rss/internal/server"
+	"github.com/Fancu1/phoenix-rss/internal/worker"
 )
 
 func main() {
@@ -25,21 +27,24 @@ func main() {
 
 	db := repository.InitDB(&cfg.Database)
 
-	redisConnOpt := asynq.RedisClientOpt{
-		Addr: cfg.Redis.Address,
-	}
-	taskClient := asynq.NewClient(redisConnOpt)
-	defer taskClient.Close()
-
 	feedRepo := repository.NewFeedRepository(db)
 	articleRepo := repository.NewArticleRepository(db)
 
-	feedSrv := core.NewFeedService(feedRepo, logger)
-	articleSvc := core.NewArticleService(feedRepo, articleRepo, logger)
+	redisConnOpt := asynq.RedisClientOpt{
+		Addr: cfg.Redis.Address,
+	}
+	articleService := core.NewArticleService(feedRepo, articleRepo, logger)
+	taskProcessor := worker.NewTaskProcesser(logger, redisConnOpt, articleService)
 
-	srv := server.New(cfg, logger, taskClient, feedSrv, articleSvc)
-	if err := srv.Start(); err != nil {
-		logger.Error("failed to start server, error: %w", err)
+	if err := taskProcessor.Start(); err != nil {
+		logger.Error("Failed to start task processor", "error", err)
 		os.Exit(1)
 	}
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("Shutting down worker server ...")
+	taskProcessor.Stop()
 }

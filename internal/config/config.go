@@ -6,6 +6,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config is the main config for the application
+type Config struct {
+	Server   ServerConfig   `yaml:"server"`
+	Database DatabaseConfig `yaml:"database"`
+	Redis    RedisConfig    `yaml:"redis"`
+}
+
+// ServerConfig is the config for the server
+type ServerConfig struct {
+	Port int `yaml:"port"`
+}
+
+// DatabaseConfig is the config for the database
 type DatabaseConfig struct {
 	Host     string `yaml:"host"`
 	Port     int    `yaml:"port"`
@@ -15,15 +28,8 @@ type DatabaseConfig struct {
 	SSLMode  string `yaml:"sslmode"`
 }
 
-// Config is the main config for the application
-type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-}
-
-// ServerConfig is the config for the server
-type ServerConfig struct {
-	Port int `yaml:"port"`
+type RedisConfig struct {
+	Address string `yaml:"address"`
 }
 
 // LoadConfig loads the config from the file

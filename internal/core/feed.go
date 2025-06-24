@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -14,12 +15,14 @@ import (
 type FeedService struct {
 	parser *gofeed.Parser
 	repo   *repository.FeedRepository
+	logger *slog.Logger
 }
 
-func NewFeedService(repo *repository.FeedRepository) *FeedService {
+func NewFeedService(repo *repository.FeedRepository, logger *slog.Logger) *FeedService {
 	return &FeedService{
 		parser: gofeed.NewParser(),
 		repo:   repo,
+		logger: logger,
 	}
 }
 
