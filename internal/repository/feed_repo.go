@@ -21,6 +21,11 @@ func (r *FeedRepository) Create(feed *models.Feed) (*models.Feed, error) {
 	return feed, result.Error
 }
 
+func (r *FeedRepository) Update(feed *models.Feed) (*models.Feed, error) {
+	result := r.db.Save(feed)
+	return feed, result.Error
+}
+
 func (r *FeedRepository) ListAll() ([]*models.Feed, error) {
 	feeds := make([]*models.Feed, 0)
 	result := r.db.Find(&feeds)

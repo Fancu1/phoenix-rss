@@ -44,8 +44,31 @@ func (s *ArticleService) FetchAndSaveArticles(ctx context.Context, feedID uint) 
 		return nil, fmt.Errorf("failed to parse feed: %w", err)
 	}
 
+	if parsedFeed.Title != feed.Title || parsedFeed.Description != feed.Description {
+		feed.Title = parsedFeed.Title
+		feed.Description = parsedFeed.Description
+		_, err := s.feedRepo.Update(feed)
+		if err != nil {
+			s.logger.Warn("failed to update feed metadata", "feed_id", feedID, "error", err)
+		}
+	}
+
+	existingArticles, err := s.articleRepo.ListByFeedID(feedID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get articles: %w", err)
+	}
+
+	existArticles := make(map[string]bool)
+	for _, article := range existingArticles {
+		existArticles[article.URL] = true
+	}
+
 	var articlesToCreate []*models.Article
 	for _, item := range parsedFeed.Items {
+		if _, ok := existArticles[item.Link]; ok {
+			continue
+		}
+
 		article := &models.Article{
 			FeedID:      feedID,
 			Title:       item.Title,

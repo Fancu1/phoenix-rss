@@ -40,7 +40,7 @@ func (h *ArticleHandler) TriggerFetch(c *gin.Context) {
 		return
 	}
 
-	info, err := h.taskClient.EnqueueContext(c.Request.Context(), task)
+	info, err := h.taskClient.EnqueueContext(c.Request.Context(), task, asynq.MaxRetry(3))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
