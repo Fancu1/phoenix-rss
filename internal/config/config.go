@@ -21,7 +21,7 @@ type ServerConfig struct {
 // DatabaseConfig is the config for the database
 type DatabaseConfig struct {
 	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
+	Port     string `yaml:"port"`
 	User     string `yaml:"user"`
 	Password string `yaml:"password"`
 	Database string `yaml:"database"`

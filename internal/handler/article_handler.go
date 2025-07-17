@@ -15,10 +15,10 @@ import (
 type ArticleHandler struct {
 	logger     *slog.Logger
 	taskClient *asynq.Client
-	service    *core.ArticleService
+	service    core.ArticleServiceInterface
 }
 
-func NewArticleHandler(logger *slog.Logger, taskClient *asynq.Client, articleService *core.ArticleService) *ArticleHandler {
+func NewArticleHandler(logger *slog.Logger, taskClient *asynq.Client, articleService core.ArticleServiceInterface) *ArticleHandler {
 	return &ArticleHandler{
 		logger:     logger,
 		taskClient: taskClient,

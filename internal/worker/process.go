@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/hibiken/asynq"
 
@@ -56,21 +55,25 @@ func (p *TaskProcesser) Stop() {
 
 func (p *TaskProcesser) HandleFeedFetchTask(ctx context.Context, task *asynq.Task) error {
 	var payload tasks.FetchFeedPayload
-	if err := json.Unmarshal(task.Payload(), payload); err != nil {
-		return asynq.SkipRetry
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
-	p.logger.Info("Fetching feed feed_id %d", payload.FeedID)
 
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
+	p.logger.Info("Start fetching feed", "feed_id", payload.FeedID)
 
-	_, err := p.articleService.FetchAndSaveArticles(ctx, payload.FeedID)
+	articles, err := p.articleService.FetchAndSaveArticles(ctx, payload.FeedID)
 	if err != nil {
-		p.logger.Error("Error fetching feed feed_id %d, error: %v", payload.FeedID, err)
+		p.logger.Error("Failed to fetch and save articles for feed",
+			"feed_id", payload.FeedID,
+			"error", err,
+		)
 		return err
 	}
 
-	p.logger.Info("Successfully fetched feed feed_id %d", payload.FeedID)
+	p.logger.Info("Successfully fetched and saved articles for feed",
+		"feed_id", payload.FeedID,
+		"count", len(articles),
+	)
 	return nil
 }
 
