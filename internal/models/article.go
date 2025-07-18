@@ -6,7 +6,7 @@ type Article struct {
 	ID          uint      `json:"id"`
 	FeedID      uint      `json:"feed_id"`
 	Title       string    `json:"title"`
-	URL         string    `json:"url"`
+	URL         string    `json:"url" gorm:"uniqueIndex"`
 	Description string    `json:"description"`
 	Content     string    `json:"content"`
 	CreatedAt   time.Time `json:"created_at"`
