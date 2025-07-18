@@ -11,6 +11,7 @@ type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
 	Redis    RedisConfig    `yaml:"redis"`
+	Auth     AuthConfig     `yaml:"auth"`
 }
 
 // ServerConfig is the config for the server
@@ -32,6 +33,10 @@ type RedisConfig struct {
 	Address string `yaml:"address"`
 }
 
+type AuthConfig struct {
+	JWTSecret string `yaml:"jwt_secret"`
+}
+
 // LoadConfig loads the config from the file
 func LoadConfig(path string) (*Config, error) {
 	// read the config file
@@ -44,6 +49,11 @@ func LoadConfig(path string) (*Config, error) {
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, err
+	}
+
+	// Set default JWT secret if not provided
+	if config.Auth.JWTSecret == "" {
+		config.Auth.JWTSecret = "phoenix-rss-default-secret-please-change-in-production"
 	}
 
 	return &config, nil

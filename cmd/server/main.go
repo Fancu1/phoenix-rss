@@ -35,13 +35,17 @@ func main() {
 	taskClient := asynq.NewClient(redisConnOpt)
 	defer taskClient.Close()
 
+	// Initialize repositories
 	feedRepo := repository.NewFeedRepository(db)
 	articleRepo := repository.NewArticleRepository(db)
+	userRepo := repository.NewUserRepository(db)
 
+	// Initialize services
 	feedSrv := core.NewFeedService(feedRepo, logger)
 	articleSvc := core.NewArticleService(feedRepo, articleRepo, logger)
+	userSvc := core.NewUserService(userRepo, cfg.Auth.JWTSecret)
 
-	srv := server.New(cfg, logger, taskClient, feedSrv, articleSvc)
+	srv := server.New(cfg, logger, taskClient, feedSrv, articleSvc, userSvc, feedRepo)
 	if err := srv.Start(); err != nil {
 		logger.Error("failed to start server, error: %w", err)
 		os.Exit(1)

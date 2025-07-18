@@ -51,7 +51,9 @@ func TestMain(m *testing.M) {
 	articleRepo := repository.NewArticleRepository(db)
 	feedService := core.NewFeedService(feedRepo, logger.New(slog.LevelDebug))
 	articleService := core.NewArticleService(feedRepo, articleRepo, logger.New(slog.LevelDebug))
-	s := New(cfg, logger.New(slog.LevelDebug), taskClient, feedService, articleService)
+	userRepo := repository.NewUserRepository(db)
+	userService := core.NewUserService(userRepo, cfg.Auth.JWTSecret)
+	s := New(cfg, logger.New(slog.LevelDebug), taskClient, feedService, articleService, userService, feedRepo)
 
 	// Start worker for processing tasks during tests
 	processor := worker.NewTaskProcesser(logger.New(slog.LevelDebug), redisOpt, articleService)

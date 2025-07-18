@@ -11,3 +11,6 @@ database:
 
 redis:
   address: "127.0.0.1:6379"
+
+auth:
+  jwt_secret: "phoenix-rss-super-secret-jwt-key-change-in-production"

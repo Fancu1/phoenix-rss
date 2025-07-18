@@ -24,5 +24,5 @@ func InitDB(cfg *config.DatabaseConfig) *gorm.DB {
 }
 
 func InitSchema(db *gorm.DB) error {
-	return db.AutoMigrate(&models.Feed{}, &models.Article{})
+	return db.AutoMigrate(&models.Feed{}, &models.Article{}, &models.User{}, &models.Subscription{})
 }
