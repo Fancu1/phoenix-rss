@@ -9,6 +9,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/Fancu1/phoenix-rss/internal/core"
+	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/tasks"
 )
 
@@ -18,7 +19,7 @@ type TaskProcesser struct {
 	articleService *core.ArticleService
 }
 
-func NewTaskProcesser(logger *slog.Logger, redisOpt asynq.RedisClientOpt, articleService *core.ArticleService) *TaskProcesser {
+func NewTaskProcesser(loggerInstance *slog.Logger, redisOpt asynq.RedisClientOpt, articleService *core.ArticleService) *TaskProcesser {
 	server := asynq.NewServer(
 		redisOpt,
 		asynq.Config{
@@ -27,15 +28,25 @@ func NewTaskProcesser(logger *slog.Logger, redisOpt asynq.RedisClientOpt, articl
 				"default":  3,
 				"low":      1,
 			},
-			Logger: NewSlogLogger(logger),
+			Logger: NewSlogLogger(loggerInstance),
 			ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
-				logger.Error("Error processing task", "task_id", task.Type(), "payload", string(task.Payload()), "error", err)
+				// Try to get task ID from context (available in asynq)
+				taskID, hasTaskID := asynq.GetTaskID(ctx)
+				if hasTaskID {
+					// Create contextual logger with task information
+					taskCtx := logger.WithTaskID(ctx, taskID)
+					log := logger.FromContext(taskCtx)
+					log.Error("Error processing task", "task_type", task.Type(), "payload", string(task.Payload()), "error", err)
+				} else {
+					// Fallback to basic logging if task ID not available
+					loggerInstance.Error("Error processing task", "task_type", task.Type(), "payload", string(task.Payload()), "error", err)
+				}
 			}),
 		},
 	)
 
 	return &TaskProcesser{
-		logger:         logger,
+		logger:         loggerInstance,
 		server:         server,
 		articleService: articleService,
 	}
@@ -54,27 +65,55 @@ func (p *TaskProcesser) Stop() {
 }
 
 func (p *TaskProcesser) HandleFeedFetchTask(ctx context.Context, task *asynq.Task) error {
+	// Get task ID from asynq context (available in task handlers)
+	taskID, hasTaskID := asynq.GetTaskID(ctx)
+	var taskCtx context.Context
+	var log *slog.Logger
+
+	if hasTaskID {
+		// Create enhanced context with task ID for tracing
+		taskCtx = logger.WithTaskID(ctx, taskID)
+		log = logger.FromContext(taskCtx)
+	} else {
+		// Fallback if task ID not available
+		taskCtx = ctx
+		log = p.logger
+	}
+
+	log.Info("processing feed fetch task", "task_type", task.Type())
+
 	var payload tasks.FetchFeedPayload
 	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		log.Error("failed to unmarshal task payload", "error", err.Error(), "payload", string(task.Payload()))
 		return fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
-	p.logger.Info("Start fetching feed", "feed_id", payload.FeedID)
+	// Add feed ID to context for better tracing
+	taskCtx = logger.WithValue(taskCtx, "feed_id", payload.FeedID)
+	log = logger.FromContext(taskCtx)
 
-	articles, err := p.articleService.FetchAndSaveArticles(ctx, payload.FeedID)
+	log.Info("starting feed fetch", "feed_id", payload.FeedID)
+
+	articles, err := p.articleService.FetchAndSaveArticles(taskCtx, payload.FeedID)
 	if err != nil {
-		p.logger.Error("Failed to fetch and save articles for feed",
+		log.Error("failed to fetch and save articles for feed",
 			"feed_id", payload.FeedID,
-			"error", err,
+			"error", err.Error(),
 		)
 		return err
 	}
 
-	p.logger.Info("Successfully fetched and saved articles for feed",
+	log.Info("successfully completed feed fetch task",
 		"feed_id", payload.FeedID,
-		"count", len(articles),
+		"articles_processed", len(articles),
 	)
 	return nil
+}
+
+// WithValue adds a key-value pair to the context for logging
+// This is a helper function for adding additional context to tasks
+func WithValue(ctx context.Context, key string, value interface{}) context.Context {
+	return context.WithValue(ctx, key, value)
 }
 
 type SlogAdapter struct {

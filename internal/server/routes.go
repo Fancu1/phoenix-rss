@@ -5,6 +5,9 @@ import (
 )
 
 func (s *Server) setupRoutes() {
+	// Apply RequestID middleware to all routes
+	s.engine.Use(handler.RequestIDMiddleware())
+
 	apiV1 := s.engine.Group("/api/v1")
 	{
 		// Public routes (no authentication required)
