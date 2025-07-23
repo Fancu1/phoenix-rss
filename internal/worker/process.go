@@ -29,7 +29,7 @@ func NewTaskProcesser(logger *slog.Logger, redisOpt asynq.RedisClientOpt, articl
 			},
 			Logger: NewSlogLogger(logger),
 			ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
-				logger.Error("Error processing task, task_id %s, payload: %s, error: %v", task.Type(), string(task.Payload()), err)
+				logger.Error("Error processing task", "task_id", task.Type(), "payload", string(task.Payload()), "error", err)
 			}),
 		},
 	)

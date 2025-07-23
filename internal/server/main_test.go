@@ -28,7 +28,7 @@ type TestApp struct {
 
 func TestMain(m *testing.M) {
 	// Load config from the same file as the application
-	cfg, err := config.LoadConfig("../../configs/config.yaml")
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config for testing: %v", err)
 	}

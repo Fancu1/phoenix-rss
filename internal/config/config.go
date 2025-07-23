@@ -1,60 +1,141 @@
 package config
 
 import (
-	"os"
+	"fmt"
+	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/spf13/viper"
 )
 
 // Config is the main config for the application
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Redis    RedisConfig    `yaml:"redis"`
-	Auth     AuthConfig     `yaml:"auth"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Database DatabaseConfig `mapstructure:"database"`
+	Redis    RedisConfig    `mapstructure:"redis"`
+	Auth     AuthConfig     `mapstructure:"auth"`
 }
 
 // ServerConfig is the config for the server
 type ServerConfig struct {
-	Port int `yaml:"port"`
+	Port int `mapstructure:"port"`
 }
 
 // DatabaseConfig is the config for the database
 type DatabaseConfig struct {
-	Host     string `yaml:"host"`
-	Port     string `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Database string `yaml:"database"`
-	SSLMode  string `yaml:"sslmode"`
+	Host     string `mapstructure:"host"`
+	Port     string `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+	Database string `mapstructure:"database"`
+	SSLMode  string `mapstructure:"sslmode"`
 }
 
 type RedisConfig struct {
-	Address string `yaml:"address"`
+	Address string `mapstructure:"address"`
 }
 
 type AuthConfig struct {
-	JWTSecret string `yaml:"jwt_secret"`
+	JWTSecret string `mapstructure:"jwt_secret"`
 }
 
-// LoadConfig loads the config from the file
-func LoadConfig(path string) (*Config, error) {
-	// read the config file
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+// LoadConfig loads the configuration from file and environment variables
+// Environment variables take precedence over file values
+// Environment variables should be prefixed with PHOENIX_RSS_ (e.g., PHOENIX_RSS_DATABASE_HOST)
+func LoadConfig() (*Config, error) {
+	v := viper.New()
+
+	// Set configuration file search parameters
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+
+	// Add multiple search paths for flexibility
+	// This allows the application to work from different working directories
+	v.AddConfigPath("./configs")        // Standard location
+	v.AddConfigPath(".")                // Current directory
+	v.AddConfigPath("/etc/phoenix-rss") // System-wide config (for production)
+
+	// Configure environment variable support
+	v.SetEnvPrefix("PHOENIX_RSS")
+	v.AutomaticEnv()
+
+	// Replace dots with underscores in environment variable names
+	// This allows database.host to be set via PHOENIX_RSS_DATABASE_HOST
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	// Set default values
+	setDefaults(v)
+
+	// Try to read configuration file
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			// Configuration file not found; this is acceptable in container environments
+			// where all configuration comes from environment variables
+		} else {
+			// Configuration file was found but another error was produced
+			return nil, fmt.Errorf("error reading config file: %w", err)
+		}
 	}
 
-	// parse the config
 	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, err
+	if err := v.Unmarshal(&config); err != nil {
+		return nil, fmt.Errorf("unable to decode config into struct: %w", err)
 	}
 
-	// Set default JWT secret if not provided
-	if config.Auth.JWTSecret == "" {
-		config.Auth.JWTSecret = "phoenix-rss-default-secret-please-change-in-production"
+	// Validate and apply post-processing
+	if err := config.validate(); err != nil {
+		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
 	return &config, nil
+}
+
+// setDefaults configures default values for the application
+func setDefaults(v *viper.Viper) {
+	// Server defaults
+	v.SetDefault("server.port", 8080)
+
+	// Database defaults
+	v.SetDefault("database.host", "127.0.0.1")
+	v.SetDefault("database.port", "15432")
+	v.SetDefault("database.user", "postgres")
+	v.SetDefault("database.password", "password")
+	v.SetDefault("database.database", "phoenix_rss")
+	v.SetDefault("database.sslmode", "disable")
+
+	// Redis defaults
+	v.SetDefault("redis.address", "127.0.0.1:6379")
+
+	// Auth defaults
+	v.SetDefault("auth.jwt_secret", "phoenix-rss-default-secret-please-change-in-production")
+}
+
+// validate performs basic validation on the loaded configuration
+func (c *Config) validate() error {
+	if c.Server.Port <= 0 || c.Server.Port > 65535 {
+		return fmt.Errorf("invalid server port: %d", c.Server.Port)
+	}
+
+	if c.Database.Host == "" {
+		return fmt.Errorf("database host cannot be empty")
+	}
+
+	if c.Database.Database == "" {
+		return fmt.Errorf("database name cannot be empty")
+	}
+
+	if c.Redis.Address == "" {
+		return fmt.Errorf("redis address cannot be empty")
+	}
+
+	if c.Auth.JWTSecret == "" {
+		return fmt.Errorf("JWT secret cannot be empty")
+	}
+
+	// Warn about default JWT secret in a production environment
+	if c.Auth.JWTSecret == "phoenix-rss-default-secret-please-change-in-production" {
+		// Note: In a real application, you might want to use a logger here
+		// For now, this serves as documentation of the requirement
+	}
+
+	return nil
 }

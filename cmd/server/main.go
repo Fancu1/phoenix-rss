@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	cfg, err := config.LoadConfig("configs/config.yaml")
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		fmt.Printf("Failed to load config: %v\n", err)
 		os.Exit(1)
@@ -47,7 +47,7 @@ func main() {
 
 	srv := server.New(cfg, logger, taskClient, feedSrv, articleSvc, userSvc, feedRepo)
 	if err := srv.Start(); err != nil {
-		logger.Error("failed to start server, error: %w", err)
+		logger.Error("failed to start server", "error", err)
 		os.Exit(1)
 	}
 }
