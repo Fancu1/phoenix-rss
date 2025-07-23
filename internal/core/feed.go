@@ -8,6 +8,7 @@ import (
 
 	"github.com/mmcdole/gofeed"
 
+	"github.com/Fancu1/phoenix-rss/internal/ierr"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/models"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
@@ -43,7 +44,7 @@ func (s *FeedService) AddFeedByURL(ctx context.Context, url string) (*models.Fee
 	feed, err := s.parser.ParseURLWithContext(url, ctx)
 	if err != nil {
 		log.Error("failed to parse feed", "url", url, "error", err.Error())
-		return nil, fmt.Errorf("failed to parse feed: %w", err)
+		return nil, fmt.Errorf("failed to parse feed from URL '%s': %w", url, ierr.ErrFeedFetchFailed.WithCause(err))
 	}
 
 	newFeed := &models.Feed{
@@ -59,7 +60,7 @@ func (s *FeedService) AddFeedByURL(ctx context.Context, url string) (*models.Fee
 	createdFeed, err := s.repo.Create(ctx, newFeed)
 	if err != nil {
 		log.Error("failed to create feed in database", "url", url, "error", err.Error())
-		return nil, fmt.Errorf("failed to create feed: %w", err)
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to create feed '%s' (%s): %w", feed.Title, url, err))
 	}
 
 	log.Info("successfully created feed", "feed_id", createdFeed.ID, "title", createdFeed.Title)
@@ -74,7 +75,7 @@ func (s *FeedService) ListAllFeeds(ctx context.Context) ([]*models.Feed, error) 
 	feeds, err := s.repo.ListAll(ctx)
 	if err != nil {
 		log.Error("failed to list all feeds", "error", err.Error())
-		return nil, fmt.Errorf("failed to list all feeds: %w", err)
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to list all feeds: %w", err))
 	}
 
 	log.Info("successfully listed all feeds", "count", len(feeds))
@@ -92,7 +93,7 @@ func (s *FeedService) SubscribeToFeed(ctx context.Context, userID uint, url stri
 	existingFeed, err := s.repo.GetByURL(ctx, url)
 	if err != nil && err.Error() != "record not found" {
 		log.Error("failed to check for existing feed", "url", url, "error", err.Error())
-		return nil, fmt.Errorf("failed to check existing feed: %w", err)
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to check existing feed for URL '%s': %w", url, err))
 	}
 
 	var feed *models.Feed
@@ -105,7 +106,7 @@ func (s *FeedService) SubscribeToFeed(ctx context.Context, userID uint, url stri
 		feed, err = s.AddFeedByURL(ctx, url)
 		if err != nil {
 			log.Error("failed to create new feed for subscription", "url", url, "error", err.Error())
-			return nil, err
+			return nil, err // Already wrapped with context in AddFeedByURL
 		}
 	}
 
@@ -113,12 +114,12 @@ func (s *FeedService) SubscribeToFeed(ctx context.Context, userID uint, url stri
 	isSubscribed, err := s.repo.IsUserSubscribed(ctx, userID, feed.ID)
 	if err != nil {
 		log.Error("failed to check subscription status", "user_id", userID, "feed_id", feed.ID, "error", err.Error())
-		return nil, fmt.Errorf("failed to check subscription: %w", err)
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to check subscription status for user %d and feed %d: %w", userID, feed.ID, err))
 	}
 
 	if isSubscribed {
 		log.Info("user already subscribed to feed", "user_id", userID, "feed_id", feed.ID)
-		return feed, nil
+		return nil, fmt.Errorf("user %d already subscribed to feed %d (%s): %w", userID, feed.ID, feed.Title, ierr.ErrAlreadySubscribed)
 	}
 
 	// Create subscription
@@ -132,7 +133,7 @@ func (s *FeedService) SubscribeToFeed(ctx context.Context, userID uint, url stri
 	err = s.repo.CreateSubscription(ctx, subscription)
 	if err != nil {
 		log.Error("failed to create subscription", "user_id", userID, "feed_id", feed.ID, "error", err.Error())
-		return nil, fmt.Errorf("failed to create subscription: %w", err)
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to create subscription for user %d to feed %d (%s): %w", userID, feed.ID, feed.Title, err))
 	}
 
 	log.Info("successfully created subscription", "user_id", userID, "feed_id", feed.ID)
@@ -148,7 +149,7 @@ func (s *FeedService) ListUserFeeds(ctx context.Context, userID uint) ([]*models
 	feeds, err := s.repo.ListByUserID(ctx, userID)
 	if err != nil {
 		log.Error("failed to list user feeds", "user_id", userID, "error", err.Error())
-		return nil, fmt.Errorf("failed to list user feeds: %w", err)
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to list feeds for user %d: %w", userID, err))
 	}
 
 	log.Info("successfully listed user feeds", "user_id", userID, "count", len(feeds))
@@ -165,18 +166,18 @@ func (s *FeedService) UnsubscribeFromFeed(ctx context.Context, userID, feedID ui
 	isSubscribed, err := s.repo.IsUserSubscribed(ctx, userID, feedID)
 	if err != nil {
 		log.Error("failed to check subscription status", "user_id", userID, "feed_id", feedID, "error", err.Error())
-		return fmt.Errorf("failed to check subscription: %w", err)
+		return ierr.NewDatabaseError(fmt.Errorf("failed to check subscription status for user %d and feed %d: %w", userID, feedID, err))
 	}
 
 	if !isSubscribed {
 		log.Warn("user not subscribed to feed", "user_id", userID, "feed_id", feedID)
-		return fmt.Errorf("user not subscribed to this feed")
+		return fmt.Errorf("user %d not subscribed to feed %d: %w", userID, feedID, ierr.ErrNotSubscribed)
 	}
 
 	err = s.repo.DeleteSubscription(ctx, userID, feedID)
 	if err != nil {
 		log.Error("failed to delete subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
-		return fmt.Errorf("failed to delete subscription: %w", err)
+		return ierr.NewDatabaseError(fmt.Errorf("failed to delete subscription for user %d from feed %d: %w", userID, feedID, err))
 	}
 
 	log.Info("successfully unsubscribed user from feed", "user_id", userID, "feed_id", feedID)

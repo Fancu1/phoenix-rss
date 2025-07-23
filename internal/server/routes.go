@@ -2,11 +2,15 @@ package server
 
 import (
 	"github.com/Fancu1/phoenix-rss/internal/handler"
+	"github.com/Fancu1/phoenix-rss/internal/ierr"
 )
 
 func (s *Server) setupRoutes() {
 	// Apply RequestID middleware to all routes
 	s.engine.Use(handler.RequestIDMiddleware())
+
+	// Apply error handling middleware to all routes
+	s.engine.Use(ierr.ErrorHandlerMiddleware())
 
 	apiV1 := s.engine.Group("/api/v1")
 	{

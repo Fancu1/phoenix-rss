@@ -9,6 +9,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/Fancu1/phoenix-rss/internal/core"
+	"github.com/Fancu1/phoenix-rss/internal/ierr"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
 	"github.com/Fancu1/phoenix-rss/internal/tasks"
@@ -38,7 +39,7 @@ func (h *ArticleHandler) TriggerFetch(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
 		log.Error("user not authenticated in protected route")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		c.Error(ierr.ErrUnauthorized)
 		return
 	}
 
@@ -46,7 +47,7 @@ func (h *ArticleHandler) TriggerFetch(c *gin.Context) {
 	feedID, err := strconv.ParseUint(feedIDStr, 10, 32)
 	if err != nil {
 		log.Warn("invalid feed ID parameter", "feed_id_str", feedIDStr, "error", err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid feed ID"})
+		c.Error(ierr.ErrInvalidFeedID)
 		return
 	}
 
@@ -56,27 +57,27 @@ func (h *ArticleHandler) TriggerFetch(c *gin.Context) {
 	isSubscribed, err := h.feedRepo.IsUserSubscribed(c.Request.Context(), userID, uint(feedID))
 	if err != nil {
 		log.Error("failed to check subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check subscription"})
+		c.Error(ierr.NewDatabaseError(err))
 		return
 	}
 
 	if !isSubscribed {
 		log.Warn("user not subscribed to feed", "user_id", userID, "feed_id", feedID)
-		c.JSON(http.StatusForbidden, gin.H{"error": "not subscribed to this feed"})
+		c.Error(ierr.ErrNotSubscribed)
 		return
 	}
 
 	task, err := tasks.NewFeedFetchTask(uint(feedID))
 	if err != nil {
 		log.Error("failed to create fetch task", "feed_id", feedID, "error", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.Error(ierr.NewTaskQueueError(err))
 		return
 	}
 
 	info, err := h.taskClient.EnqueueContext(c.Request.Context(), task, asynq.MaxRetry(3))
 	if err != nil {
 		log.Error("failed to enqueue fetch task", "feed_id", feedID, "error", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.Error(ierr.NewTaskQueueError(err))
 		return
 	}
 
@@ -93,7 +94,7 @@ func (h *ArticleHandler) ListArticles(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
 		log.Error("user not authenticated in protected route")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		c.Error(ierr.ErrUnauthorized)
 		return
 	}
 
@@ -101,7 +102,7 @@ func (h *ArticleHandler) ListArticles(c *gin.Context) {
 	feedID, err := strconv.ParseUint(feedIDStr, 10, 32)
 	if err != nil {
 		log.Warn("invalid feed ID parameter", "feed_id_str", feedIDStr, "error", err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid feed ID"})
+		c.Error(ierr.ErrInvalidFeedID)
 		return
 	}
 
@@ -111,20 +112,20 @@ func (h *ArticleHandler) ListArticles(c *gin.Context) {
 	isSubscribed, err := h.feedRepo.IsUserSubscribed(c.Request.Context(), userID, uint(feedID))
 	if err != nil {
 		log.Error("failed to check subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check subscription"})
+		c.Error(ierr.NewDatabaseError(err))
 		return
 	}
 
 	if !isSubscribed {
 		log.Warn("user not subscribed to feed", "user_id", userID, "feed_id", feedID)
-		c.JSON(http.StatusForbidden, gin.H{"error": "not subscribed to this feed"})
+		c.Error(ierr.ErrNotSubscribed)
 		return
 	}
 
 	articles, err := h.service.ListArticlesByFeedID(c.Request.Context(), uint(feedID))
 	if err != nil {
 		log.Error("failed to list articles", "user_id", userID, "feed_id", feedID, "error", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.Error(err)
 		return
 	}
 

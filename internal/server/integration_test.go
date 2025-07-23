@@ -154,9 +154,12 @@ func TestAuthentication(t *testing.T) {
 
 		require.Equal(t, http.StatusConflict, resp.StatusCode)
 
-		var errorResp map[string]interface{}
+		var errorResp struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&errorResp))
-		require.Contains(t, errorResp["error"], "already exists")
+		require.Contains(t, errorResp.Message, "already exists")
 	})
 
 	t.Run("User login success", func(t *testing.T) {
@@ -180,9 +183,12 @@ func TestAuthentication(t *testing.T) {
 
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
-		var errorResp map[string]interface{}
+		var errorResp struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&errorResp))
-		require.Contains(t, errorResp["error"], "invalid credentials")
+		require.Contains(t, errorResp.Message, "Invalid credentials")
 	})
 }
 
@@ -219,9 +225,12 @@ func TestUnauthorizedAccess(t *testing.T) {
 
 			require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
-			var errorResp map[string]interface{}
+			var errorResp struct {
+				Code    int    `json:"code"`
+				Message string `json:"message"`
+			}
 			require.NoError(t, json.NewDecoder(resp.Body).Decode(&errorResp))
-			require.Contains(t, errorResp["error"], "authorization header required")
+			require.Contains(t, errorResp.Message, "Authentication required")
 		})
 	}
 }
@@ -353,9 +362,12 @@ func TestUserIsolation(t *testing.T) {
 
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 
-		var errorResp map[string]interface{}
+		var errorResp struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&errorResp))
-		require.Contains(t, errorResp["error"], "not subscribed")
+		require.Contains(t, errorResp.Message, "Not subscribed")
 	})
 }
 

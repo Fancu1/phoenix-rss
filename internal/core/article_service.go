@@ -8,6 +8,7 @@ import (
 
 	"github.com/mmcdole/gofeed"
 
+	"github.com/Fancu1/phoenix-rss/internal/ierr"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/models"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
@@ -43,7 +44,12 @@ func (s *ArticleService) FetchAndSaveArticles(ctx context.Context, feedID uint) 
 	feed, err := s.feedRepo.GetByID(ctx, feedID)
 	if err != nil {
 		log.Error("failed to get feed", "feed_id", feedID, "error", err.Error())
-		return nil, fmt.Errorf("failed to get feed: %w", err)
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to get feed %d for article fetch: %w", feedID, err))
+	}
+
+	if feed == nil {
+		log.Error("feed not found", "feed_id", feedID)
+		return nil, fmt.Errorf("feed %d not found: %w", feedID, ierr.ErrFeedNotFound)
 	}
 
 	log.Info("parsing feed from URL", "feed_id", feedID, "url", feed.URL)
@@ -52,7 +58,7 @@ func (s *ArticleService) FetchAndSaveArticles(ctx context.Context, feedID uint) 
 	parsedFeed, err := s.parser.ParseURLWithContext(feed.URL, ctx)
 	if err != nil {
 		log.Error("failed to parse feed", "feed_id", feedID, "url", feed.URL, "error", err.Error())
-		return nil, fmt.Errorf("failed to parse feed: %w", err)
+		return nil, fmt.Errorf("failed to parse feed %d (%s) from URL '%s': %w", feedID, feed.Title, feed.URL, ierr.ErrFeedFetchFailed.WithCause(err))
 	}
 
 	log.Info("parsed feed successfully", "feed_id", feedID, "article_count", len(parsedFeed.Items))
@@ -106,7 +112,7 @@ func (s *ArticleService) FetchAndSaveArticles(ctx context.Context, feedID uint) 
 	err = s.articleRepo.CreateBatch(ctx, newArticles)
 	if err != nil {
 		log.Error("failed to save articles", "feed_id", feedID, "error", err.Error())
-		return nil, fmt.Errorf("failed to save articles: %w", err)
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to save %d articles for feed %d (%s): %w", len(newArticles), feedID, feed.Title, err))
 	}
 
 	log.Info("successfully saved articles", "feed_id", feedID, "saved_count", len(newArticles))
@@ -121,7 +127,7 @@ func (s *ArticleService) ListArticlesByFeedID(ctx context.Context, feedID uint) 
 	articles, err := s.articleRepo.GetByFeedID(ctx, feedID)
 	if err != nil {
 		log.Error("failed to list articles", "feed_id", feedID, "error", err.Error())
-		return nil, fmt.Errorf("failed to list articles: %w", err)
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to list articles for feed %d: %w", feedID, err))
 	}
 
 	log.Info("successfully listed articles", "feed_id", feedID, "count", len(articles))

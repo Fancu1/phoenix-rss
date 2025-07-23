@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/Fancu1/phoenix-rss/internal/core"
+	"github.com/Fancu1/phoenix-rss/internal/ierr"
 )
 
 type UserHandler struct {
@@ -40,35 +41,31 @@ type AuthResponse struct {
 func (h *UserHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.Error(ierr.NewValidationError(err.Error()))
 		return
 	}
 
 	// Basic validation
 	req.Username = strings.TrimSpace(req.Username)
 	if len(req.Username) < 3 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "username must be at least 3 characters"})
+		c.Error(ierr.NewValidationError("username must be at least 3 characters"))
 		return
 	}
 	if len(req.Password) < 6 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 6 characters"})
+		c.Error(ierr.NewValidationError("password must be at least 6 characters"))
 		return
 	}
 
 	user, err := h.userService.Register(req.Username, req.Password)
 	if err != nil {
-		if strings.Contains(err.Error(), "already exists") {
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register user"})
+		c.Error(err)
 		return
 	}
 
 	// Generate token for immediate login
 	token, err := h.userService.Login(req.Username, req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "user created but failed to generate token"})
+		c.Error(ierr.NewInternalError(err))
 		return
 	}
 
@@ -84,24 +81,20 @@ func (h *UserHandler) Register(c *gin.Context) {
 func (h *UserHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.Error(ierr.NewValidationError(err.Error()))
 		return
 	}
 
 	token, err := h.userService.Login(req.Username, req.Password)
 	if err != nil {
-		if strings.Contains(err.Error(), "invalid credentials") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to login"})
+		c.Error(err)
 		return
 	}
 
 	// Get user details for response
 	user, err := h.userService.GetUserFromToken(token)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user details"})
+		c.Error(err)
 		return
 	}
 

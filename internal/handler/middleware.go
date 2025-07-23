@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"net/http"
+	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Fancu1/phoenix-rss/internal/core"
+	"github.com/Fancu1/phoenix-rss/internal/ierr"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
 )
 
@@ -66,7 +67,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		// Get authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header required"})
+			c.Error(ierr.ErrUnauthorized.WithCause(fmt.Errorf("authorization header required")))
 			c.Abort()
 			return
 		}
@@ -74,7 +75,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		// Check if it's a Bearer token
 		tokenParts := strings.SplitN(authHeader, " ", 2)
 		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
+			c.Error(ierr.ErrUnauthorized.WithCause(fmt.Errorf("invalid authorization header format")))
 			c.Abort()
 			return
 		}
@@ -84,7 +85,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		// Validate token
 		token, err := m.userService.ValidateToken(tokenString)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			c.Error(err) // Already wrapped as AppError in ValidateToken
 			c.Abort()
 			return
 		}
@@ -92,14 +93,14 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		// Extract user ID from token
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
+			c.Error(ierr.ErrInvalidToken.WithCause(fmt.Errorf("invalid token claims")))
 			c.Abort()
 			return
 		}
 
 		userIDFloat, ok := claims["user_id"].(float64)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user_id in token"})
+			c.Error(ierr.ErrInvalidToken.WithCause(fmt.Errorf("invalid user_id in token")))
 			c.Abort()
 			return
 		}
@@ -109,7 +110,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		// Get user details
 		user, err := m.userService.GetUserFromToken(tokenString)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+			c.Error(err) // Already wrapped as AppError in GetUserFromToken
 			c.Abort()
 			return
 		}
