@@ -24,10 +24,6 @@ func main() {
 	logger := logger.New(slog.LevelDebug)
 
 	db := repository.InitDB(&cfg.Database)
-	if err := repository.InitSchema(db); err != nil {
-		logger.Error("failed to init schema", "error", err)
-		os.Exit(1)
-	}
 
 	redisConnOpt := asynq.RedisClientOpt{
 		Addr: cfg.Redis.Address,

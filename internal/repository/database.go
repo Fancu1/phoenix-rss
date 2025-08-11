@@ -7,7 +7,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
-	"github.com/Fancu1/phoenix-rss/internal/models"
 )
 
 func InitDB(cfg *config.DatabaseConfig) *gorm.DB {
@@ -24,5 +23,5 @@ func InitDB(cfg *config.DatabaseConfig) *gorm.DB {
 }
 
 func InitSchema(db *gorm.DB) error {
-	return db.AutoMigrate(&models.Feed{}, &models.Article{}, &models.User{}, &models.Subscription{})
+	return nil
 }

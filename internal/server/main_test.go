@@ -35,9 +35,6 @@ func TestMain(m *testing.M) {
 
 	// Connect to the database started by db-setup.sh
 	db := repository.InitDB(&cfg.Database)
-	if err := repository.InitSchema(db); err != nil {
-		log.Fatalf("Failed to init schema: %v", err)
-	}
 
 	// Connect to the redis instance started by redis-setup.sh
 	redisOpt := asynq.RedisClientOpt{Addr: cfg.Redis.Address}
