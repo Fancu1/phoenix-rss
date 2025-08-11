@@ -28,7 +28,6 @@ func run() error {
 
 	dbURL := buildPostgresURL(cfg)
 
-	// Fixed migrations dir relative to repo root
 	absDir, err := filepath.Abs("db/migrations")
 	if err != nil {
 		return fmt.Errorf("resolve migrations dir: %w", err)
@@ -79,10 +78,6 @@ func run() error {
 }
 
 func buildPostgresURL(cfg *config.Config) string {
-	// prefer environment variable DATABASE_URL if provided
-	if v := os.Getenv("DATABASE_URL"); v != "" {
-		return v
-	}
 	db := cfg.Database
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 		db.User, db.Password, db.Host, db.Port, db.Database, db.SSLMode,

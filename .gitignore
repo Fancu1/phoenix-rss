@@ -1,0 +1,42 @@
+# Binaries for programs
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Compiled binaries
+# You might want to ignore the entire `bin/` directory if you compile your binaries there
+bin/
+
+# Test binaries
+*.test
+*.out
+
+# Dependency management
+# If you are not using Go modules, you might need to ignore vendor/
+# vendor/
+
+# Go module cache
+# This is typically managed by Go itself, but can be added if issues arise
+# go.mod.bak
+# go.sum.bak
+
+# IDE and editor files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+.cursor/
+.cursorindexingignore
+.specstory/
+postgresql_data/
+repomix-output.md
+vendor/
