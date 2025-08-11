@@ -6,44 +6,6 @@ Phoenix RSS 是一个用 Go 语言编写的开源 RSS 聚合器。它提供了�
 
 Phoenix RSS 采用了前后端分离、服务与工作进程分离的架构。核心由一个 API 服务器和一个后台工作进程组成，通过 Redis 任务队列进行解耦。
 
-```mermaid
-graph TD
-    subgraph 用户交互
-        Client[客户端/用户]
-    end
-
-    subgraph API 服务器 (Go/Gin)
-        Client -- "HTTP API 请求 (例如 POST /api/v1/feeds)" --> GinRouter(Gin 路由器)
-        GinRouter -- " " --> FeedHandler(Feed 处理器)
-        GinRouter -- " " --> ArticleHandler(文章处理器)
-        FeedHandler -- "管理 Feed" --> FeedService(Feed 服务)
-        ArticleHandler -- "触发抓取" --> AsynqClient(Asynq 客户端)
-        FeedService -- "操作 Feed 数据" --> FeedRepo(Feed 仓库)
-        ArticleHandler -- "列出文章" --> ArticleService(文章服务)
-        ArticleService -- "操作文章数据" --> ArticleRepo(文章仓库)
-    end
-
-    subgraph 数据库
-        PostgreSQL[(PostgreSQL)]
-    end
-    
-    subgraph 任务队列
-        Redis[(Redis)]
-    end
-    
-    subgraph 后台工作进程 (Go/Asynq)
-        Worker(Asynq Worker) -- "处理任务" --> TaskHandler(Feed 抓取处理器)
-        TaskHandler -- "抓取并保存文章" --> ArticleService
-    end
-
-    AsynqClient -- "推送'Feed抓取'任务" --> Redis
-    Worker -- "拉取任务" --> Redis
-    FeedRepo -- "读/写" --> PostgreSQL
-    ArticleRepo -- "读/写" --> PostgreSQL
-    ArticleService -- "读取 Feed" --> FeedRepo
-```
-
-
 ### 核心组件
 
 -   **API 服务器**: 使用 [Gin](https://github.com/gin-gonic/gin) 框架构建，负责处理所有面向用户的 HTTP 请求。它提供了管理 RSS 源和查看文章的 RESTful API。
@@ -94,83 +56,33 @@ graph TD
 └── docker-compose.yml    # Docker Compose 配置
 ```
 
-## 快速开始
+## 运行应用
 
-### 环境要求
+应用包含两个独立的进程，你需要分别启动它们。
 
--   Go 1.18+
--   Docker
+### 启动 API 服务器
 
-### 安装与运行
+```bash
+# 先执行数据库迁移
+go run ./cmd/migrator up
+# 启动 API 服务器
+go run ./cmd/server/main.go
 
-1.  **克隆仓库**
+### 启动后台工作进程
 
-    ```bash
-    git clone https://github.com/Fancu1/phoenix-rss.git
-    cd phoenix-rss
-    ```
+```bash
+# 启动 worker
+go run ./cmd/worker/main.go
+```
 
-2.  **启动依赖服务**
+### 迁移（Migration）
 
-    项目提供了便捷的脚本来通过 Docker 启动 PostgreSQL 和 Redis。
-
-    ```bash
-    # 启动 PostgreSQL 容器
-    ./db-setup.sh
-
-    # 启动 Redis 容器
-    ./redis-setup.sh
-    ```
-    
-    你也可以使用 `docker-compose.yml` 来统一管理这些服务：
-    ```bash
-    docker-compose up -d
-    ```
-
-3.  **安装 Go 依赖**
-
-    ```bash
-    go mod tidy
-    ```
-
-4.  **运行应用**
-
-    应用包含两个独立的进程，你需要分别启动它们。
-
-    *   **启动 API 服务器:**
-        ```bash
-        go run ./cmd/server/main.go
-        ```
-        服务器默认在 `8080` 端口上运行。
-
-    *   **启动后台工作进程:**
-        ```bash
-        go run ./cmd/worker/main.go
-        ```
-
-    应用启动时会自动执行数据库迁移，创建所需的表。
+```bash
+go run ./cmd/migrator up
+```
 
 ## 运行测试
-
-在运行测试之前，请确保 PostgreSQL 和 Redis 正在通过 `db-setup.sh` 和 `redis-setup.sh` 或 `docker-compose` 运行。
-
-执行以下命令来运行所有测试，包括集成测试：
 
 ```bash
 go test -v ./...
 ```
-
-## API 端点
-
-> `🟢` 表示公共接口，`🔒` 表示需要在 `Authorization: Bearer <token>` 头中携带 JWT。
-
-| 方法   | 路径                                           | 权限 | 描述                               |
-| ------ | ---------------------------------------------- | ---- | ---------------------------------- |
-| `GET`  | `/api/v1/health`                               | 🟢    | 健康检查                           |
-| `POST` | `/api/v1/users/register`                       | 🟢    | 用户注册                           |
-| `POST` | `/api/v1/users/login`                          | 🟢    | 用户登录，返回 JWT                 |
-| `GET`  | `/api/v1/feeds`                                | 🔒    | 获取当前用户订阅的 Feed 列表       |
-| `POST` | `/api/v1/feeds`                                | 🔒    | 订阅新的 RSS Feed                  |
-| `DELETE`| `/api/v1/feeds/{feed_id}`                     | 🔒    | 取消订阅                           |
-| `POST` | `/api/v1/feeds/{feed_id}/fetch`                | 🔒    | 触发异步抓取指定 Feed 的文章       |
-| `GET`  | `/api/v1/feeds/{feed_id}/articles`             | 🔒    | 获取指定 Feed 的文章               | 
