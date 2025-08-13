@@ -13,6 +13,7 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	Redis    RedisConfig    `mapstructure:"redis"`
 	Auth     AuthConfig     `mapstructure:"auth"`
+	Kafka    KafkaConfig    `mapstructure:"kafka"`
 }
 
 // ServerConfig is the config for the server
@@ -36,6 +37,13 @@ type RedisConfig struct {
 
 type AuthConfig struct {
 	JWTSecret string `mapstructure:"jwt_secret"`
+}
+
+// KafkaConfig holds Kafka connectivity and topics
+type KafkaConfig struct {
+	Brokers []string `mapstructure:"brokers"`
+	Topic   string   `mapstructure:"topic"`
+	GroupID string   `mapstructure:"group_id"`
 }
 
 // LoadConfig loads the configuration from file and environment variables
@@ -107,6 +115,11 @@ func setDefaults(v *viper.Viper) {
 
 	// Auth defaults
 	v.SetDefault("auth.jwt_secret", "phoenix-rss-default-secret-please-change-in-production")
+
+	// Kafka defaults
+	v.SetDefault("kafka.brokers", []string{"127.0.0.1:19092"})
+	v.SetDefault("kafka.topic", "feed.fetch")
+	v.SetDefault("kafka.group_id", "phoenix-rss-worker")
 }
 
 // validate performs basic validation on the loaded configuration
@@ -129,6 +142,16 @@ func (c *Config) validate() error {
 
 	if c.Auth.JWTSecret == "" {
 		return fmt.Errorf("JWT secret cannot be empty")
+	}
+
+	if len(c.Kafka.Brokers) == 0 {
+		return fmt.Errorf("kafka brokers cannot be empty")
+	}
+	if c.Kafka.Topic == "" {
+		return fmt.Errorf("kafka topic for feed fetch cannot be empty")
+	}
+	if c.Kafka.GroupID == "" {
+		return fmt.Errorf("kafka group id cannot be empty")
 	}
 
 	// Warn about default JWT secret in a production environment

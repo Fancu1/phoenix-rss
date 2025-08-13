@@ -7,11 +7,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hibiken/asynq"
 	"gorm.io/gorm"
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/core"
+	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
 	"github.com/Fancu1/phoenix-rss/internal/worker"
@@ -20,10 +20,9 @@ import (
 var app *TestApp
 
 type TestApp struct {
-	Server    *httptest.Server
-	DB        *gorm.DB
-	Inspector *asynq.Inspector
-	Worker    *asynq.Server
+	Server   *httptest.Server
+	DB       *gorm.DB
+	StopFunc func()
 }
 
 func TestMain(m *testing.M) {
@@ -36,13 +35,6 @@ func TestMain(m *testing.M) {
 	// Connect to the database started by db-setup.sh
 	db := repository.InitDB(&cfg.Database)
 
-	// Connect to the redis instance started by redis-setup.sh
-	redisOpt := asynq.RedisClientOpt{Addr: cfg.Redis.Address}
-	taskClient := asynq.NewClient(redisOpt)
-	inspector := asynq.NewInspector(redisOpt)
-	defer taskClient.Close()
-	defer inspector.Close()
-
 	// Setup services and handlers
 	feedRepo := repository.NewFeedRepository(db)
 	articleRepo := repository.NewArticleRepository(db)
@@ -50,26 +42,34 @@ func TestMain(m *testing.M) {
 	articleService := core.NewArticleService(feedRepo, articleRepo, logger.New(slog.LevelDebug))
 	userRepo := repository.NewUserRepository(db)
 	userService := core.NewUserService(userRepo, cfg.Auth.JWTSecret)
-	s := New(cfg, logger.New(slog.LevelDebug), taskClient, feedService, articleService, userService, feedRepo)
 
-	// Start worker for processing tasks during tests
-	processor := worker.NewTaskProcesser(logger.New(slog.LevelDebug), redisOpt, articleService)
+	// Create event handler for processing
+	eventHandler := worker.NewEventHandler(logger.New(slog.LevelDebug), articleService)
+
+	// In tests, use in-memory bus to avoid Kafka dependency
+	memBus := events.NewMemoryBus(logger.New(slog.LevelDebug), eventHandler.HandleFeedFetch)
+
+	// Create server with memory bus as producer
+	s := New(cfg, logger.New(slog.LevelDebug), memBus, feedService, articleService, userService, feedRepo)
+
+	// Create worker and register the memory bus as consumer
+	appWorker := worker.NewWorker(logger.New(slog.LevelDebug))
+	appWorker.RegisterConsumer(memBus)
 
 	// Start worker in background
 	go func() {
-		if err := processor.Start(); err != nil {
+		if err := appWorker.Start(); err != nil {
 			log.Printf("Worker error: %v", err)
 		}
 	}()
 
 	app = &TestApp{
-		Server:    httptest.NewServer(s.engine),
-		DB:        db,
-		Inspector: inspector,
-		Worker:    nil, // We don't need to expose the worker server directly
+		Server:   httptest.NewServer(s.engine),
+		DB:       db,
+		StopFunc: appWorker.Stop,
 	}
 	defer app.Server.Close()
-	defer processor.Stop()
+	defer appWorker.Stop()
 
 	// Run tests
 	code := m.Run()

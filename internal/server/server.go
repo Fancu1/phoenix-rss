@@ -5,10 +5,10 @@ import (
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hibiken/asynq"
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/core"
+	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/handler"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
 )
@@ -23,9 +23,9 @@ type Server struct {
 	authMiddleware *handler.AuthMiddleware
 }
 
-func New(cfg *config.Config, logger *slog.Logger, taskClient *asynq.Client, feedService core.FeedServiceInterface, articleService *core.ArticleService, userService core.UserServiceInterface, feedRepo *repository.FeedRepository) *Server {
+func New(cfg *config.Config, logger *slog.Logger, producer events.Producer, feedService core.FeedServiceInterface, articleService *core.ArticleService, userService core.UserServiceInterface, feedRepo *repository.FeedRepository) *Server {
 	feedHandler := handler.NewFeedHandler(feedService)
-	articleHandler := handler.NewArticleHandler(logger, taskClient, articleService, feedRepo)
+	articleHandler := handler.NewArticleHandler(logger, producer, articleService, feedRepo)
 	userHandler := handler.NewUserHandler(userService)
 	authMiddleware := handler.NewAuthMiddleware(userService)
 

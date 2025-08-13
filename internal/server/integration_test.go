@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hibiken/asynq"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Fancu1/phoenix-rss/internal/models"
@@ -29,31 +28,29 @@ type AuthResponse struct {
 	} `json:"user"`
 }
 
-func waitForWorkerToBeIdle(t *testing.T, inspector *asynq.Inspector) {
+func waitForArticles(t *testing.T, token string, feedID uint) {
 	t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
+	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		info, err := inspector.GetQueueInfo("default")
-		require.NoError(t, err)
-		if info.Active == 0 && info.Pending == 0 && info.Retry == 0 {
-			time.Sleep(200 * time.Millisecond)
-			return
+		listURL := fmt.Sprintf("%s/api/v1/feeds/%d/articles", app.Server.URL, feedID)
+		resp := makeAuthenticatedRequest(t, http.MethodGet, listURL, "", token)
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			var articles []*models.Article
+			_ = json.NewDecoder(resp.Body).Decode(&articles)
+			if len(articles) > 0 {
+				return
+			}
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(300 * time.Millisecond)
 	}
-	t.Fatal("worker did not become idle in time")
+	t.Fatal("articles not available in time")
 }
 
 func Ctx(t *testing.T) context.Context {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(func() {
 		require.NoError(t, app.DB.Exec("TRUNCATE TABLE subscriptions, users, feeds, articles RESTART IDENTITY CASCADE").Error)
-		queues, err := app.Inspector.Queues()
-		require.NoError(t, err)
-		for _, queue := range queues {
-			_, err := app.Inspector.DeleteAllScheduledTasks(queue)
-			require.NoError(t, err)
-		}
 		cancel()
 	})
 	return ctx
@@ -285,12 +282,11 @@ func TestFeedManagementE2E(t *testing.T) {
 
 		var response map[string]interface{}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&response))
-		require.Contains(t, response, "task_id")
-		require.NotEmpty(t, response["task_id"])
+		require.Contains(t, response, "message")
 	})
 
 	t.Log("Waiting for worker to fetch articles...")
-	waitForWorkerToBeIdle(t, app.Inspector)
+	waitForArticles(t, token, createdFeed.ID)
 
 	t.Run("List articles after fetch", func(t *testing.T) {
 		listURL := fmt.Sprintf("%s/api/v1/feeds/%d/articles", app.Server.URL, createdFeed.ID)

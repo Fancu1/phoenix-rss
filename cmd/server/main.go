@@ -5,10 +5,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/hibiken/asynq"
-
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/core"
+	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
 	"github.com/Fancu1/phoenix-rss/internal/server"
@@ -25,11 +24,13 @@ func main() {
 
 	db := repository.InitDB(&cfg.Database)
 
-	redisConnOpt := asynq.RedisClientOpt{
-		Addr: cfg.Redis.Address,
-	}
-	taskClient := asynq.NewClient(redisConnOpt)
-	defer taskClient.Close()
+	// Initialize Kafka producer
+	producer := events.NewKafkaProducer(logger, events.KafkaConfig{
+		Brokers: cfg.Kafka.Brokers,
+		Topic:   cfg.Kafka.Topic,
+		GroupID: cfg.Kafka.GroupID,
+	})
+	defer producer.Close()
 
 	// Initialize repositories
 	feedRepo := repository.NewFeedRepository(db)
@@ -41,7 +42,7 @@ func main() {
 	articleSvc := core.NewArticleService(feedRepo, articleRepo, logger)
 	userSvc := core.NewUserService(userRepo, cfg.Auth.JWTSecret)
 
-	srv := server.New(cfg, logger, taskClient, feedSrv, articleSvc, userSvc, feedRepo)
+	srv := server.New(cfg, logger, producer, feedSrv, articleSvc, userSvc, feedRepo)
 	if err := srv.Start(); err != nil {
 		logger.Error("failed to start server", "error", err)
 		os.Exit(1)

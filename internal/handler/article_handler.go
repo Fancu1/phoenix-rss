@@ -6,28 +6,27 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hibiken/asynq"
 
 	"github.com/Fancu1/phoenix-rss/internal/core"
+	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/ierr"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
-	"github.com/Fancu1/phoenix-rss/internal/tasks"
 )
 
 type ArticleHandler struct {
-	logger     *slog.Logger
-	taskClient *asynq.Client
-	service    core.ArticleServiceInterface
-	feedRepo   *repository.FeedRepository
+	logger   *slog.Logger
+	producer events.Producer
+	service  core.ArticleServiceInterface
+	feedRepo *repository.FeedRepository
 }
 
-func NewArticleHandler(logger *slog.Logger, taskClient *asynq.Client, articleService core.ArticleServiceInterface, feedRepo *repository.FeedRepository) *ArticleHandler {
+func NewArticleHandler(logger *slog.Logger, producer events.Producer, articleService core.ArticleServiceInterface, feedRepo *repository.FeedRepository) *ArticleHandler {
 	return &ArticleHandler{
-		logger:     logger,
-		taskClient: taskClient,
-		service:    articleService,
-		feedRepo:   feedRepo,
+		logger:   logger,
+		producer: producer,
+		service:  articleService,
+		feedRepo: feedRepo,
 	}
 }
 
@@ -67,23 +66,15 @@ func (h *ArticleHandler) TriggerFetch(c *gin.Context) {
 		return
 	}
 
-	task, err := tasks.NewFeedFetchTask(uint(feedID))
-	if err != nil {
-		log.Error("failed to create fetch task", "feed_id", feedID, "error", err.Error())
+	if err := h.producer.PublishFeedFetch(c.Request.Context(), uint(feedID)); err != nil {
+		log.Error("failed to publish feed fetch event", "feed_id", feedID, "error", err.Error())
 		c.Error(ierr.NewTaskQueueError(err))
 		return
 	}
 
-	info, err := h.taskClient.EnqueueContext(c.Request.Context(), task, asynq.MaxRetry(3))
-	if err != nil {
-		log.Error("failed to enqueue fetch task", "feed_id", feedID, "error", err.Error())
-		c.Error(ierr.NewTaskQueueError(err))
-		return
-	}
+	log.Info("feed fetch event published successfully", "feed_id", feedID, "user_id", userID)
 
-	log.Info("feed fetch job enqueued successfully", "feed_id", feedID, "user_id", userID, "task_id", info.ID)
-
-	c.JSON(http.StatusAccepted, gin.H{"message": "Feed fetch job accepted", "task_id": info.ID})
+	c.JSON(http.StatusAccepted, gin.H{"message": "Feed fetch job accepted"})
 }
 
 func (h *ArticleHandler) ListArticles(c *gin.Context) {
