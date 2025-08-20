@@ -8,8 +8,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/Fancu1/phoenix-rss/internal/ierr"
-	"github.com/Fancu1/phoenix-rss/internal/models"
-	"github.com/Fancu1/phoenix-rss/internal/repository"
+	"github.com/Fancu1/phoenix-rss/internal/user-service/models"
+	"github.com/Fancu1/phoenix-rss/internal/user-service/repository"
 )
 
 type UserServiceInterface interface {
@@ -32,7 +32,7 @@ func NewUserService(userRepo *repository.UserRepository, jwtSecret string) *User
 }
 
 func (s *UserService) Register(username, password string) (*models.User, error) {
-	// Check if user already exists
+	// check if user already exists
 	existingUser, err := s.userRepo.GetByUsername(username)
 	if err != nil {
 		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to check existing user '%s': %w", username, err))
@@ -41,13 +41,13 @@ func (s *UserService) Register(username, password string) (*models.User, error) 
 		return nil, fmt.Errorf("user '%s' already exists: %w", username, ierr.ErrUserExists)
 	}
 
-	// Hash password
+	// hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, ierr.NewInternalError(fmt.Errorf("failed to hash password for user '%s': %w", username, err))
 	}
 
-	// Create user
+	// create user
 	user := &models.User{
 		Username:     username,
 		PasswordHash: string(hashedPassword),
@@ -62,7 +62,7 @@ func (s *UserService) Register(username, password string) (*models.User, error) 
 }
 
 func (s *UserService) Login(username, password string) (string, error) {
-	// Get user
+	// get user
 	user, err := s.userRepo.GetByUsername(username)
 	if err != nil {
 		return "", ierr.NewDatabaseError(fmt.Errorf("failed to get user '%s': %w", username, err))
@@ -71,13 +71,13 @@ func (s *UserService) Login(username, password string) (string, error) {
 		return "", fmt.Errorf("login failed for user '%s': %w", username, ierr.ErrInvalidCredentials)
 	}
 
-	// Verify password
+	// verify password
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
 	if err != nil {
 		return "", fmt.Errorf("password verification failed for user '%s': %w", username, ierr.ErrInvalidCredentials)
 	}
 
-	// Generate JWT token
+	// generate JWT token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id":  user.ID,
 		"username": user.Username,
@@ -115,7 +115,7 @@ func (s *UserService) ValidateToken(tokenString string) (*jwt.Token, error) {
 func (s *UserService) GetUserFromToken(tokenString string) (*models.User, error) {
 	token, err := s.ValidateToken(tokenString)
 	if err != nil {
-		return nil, err // Already wrapped with context in ValidateToken
+		return nil, err
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)

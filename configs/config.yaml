@@ -20,3 +20,6 @@ kafka:
     - "127.0.0.1:19092"
   topic: "feed.fetch"
   group_id: "phoenix-rss-worker"
+
+user_service:
+  address: "127.0.0.1:50051"

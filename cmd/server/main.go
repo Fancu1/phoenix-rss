@@ -35,12 +35,18 @@ func main() {
 	// Initialize repositories
 	feedRepo := repository.NewFeedRepository(db)
 	articleRepo := repository.NewArticleRepository(db)
-	userRepo := repository.NewUserRepository(db)
 
 	// Initialize services
 	feedSrv := core.NewFeedService(feedRepo, logger)
 	articleSvc := core.NewArticleService(feedRepo, articleRepo, logger)
-	userSvc := core.NewUserService(userRepo, cfg.Auth.JWTSecret)
+
+	// Initialize user service gRPC client
+	userSvc, err := core.NewUserServiceClient(cfg.UserService.Address)
+	if err != nil {
+		logger.Error("failed to connect to user service", "address", cfg.UserService.Address, "error", err)
+		os.Exit(1)
+	}
+	defer userSvc.Close()
 
 	srv := server.New(cfg, logger, producer, feedSrv, articleSvc, userSvc, feedRepo)
 	if err := srv.Start(); err != nil {

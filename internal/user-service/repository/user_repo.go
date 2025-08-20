@@ -5,7 +5,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/Fancu1/phoenix-rss/internal/models"
+	"github.com/Fancu1/phoenix-rss/internal/user-service/models"
 )
 
 type UserRepository struct {

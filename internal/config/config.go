@@ -9,11 +9,12 @@ import (
 
 // Config is the main config for the application
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Redis    RedisConfig    `mapstructure:"redis"`
-	Auth     AuthConfig     `mapstructure:"auth"`
-	Kafka    KafkaConfig    `mapstructure:"kafka"`
+	Server      ServerConfig      `mapstructure:"server"`
+	Database    DatabaseConfig    `mapstructure:"database"`
+	Redis       RedisConfig       `mapstructure:"redis"`
+	Auth        AuthConfig        `mapstructure:"auth"`
+	Kafka       KafkaConfig       `mapstructure:"kafka"`
+	UserService UserServiceConfig `mapstructure:"user_service"`
 }
 
 // ServerConfig is the config for the server
@@ -44,6 +45,10 @@ type KafkaConfig struct {
 	Brokers []string `mapstructure:"brokers"`
 	Topic   string   `mapstructure:"topic"`
 	GroupID string   `mapstructure:"group_id"`
+}
+
+type UserServiceConfig struct {
+	Address string `mapstructure:"address"`
 }
 
 // LoadConfig loads the configuration from file and environment variables
@@ -120,6 +125,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("kafka.brokers", []string{"127.0.0.1:19092"})
 	v.SetDefault("kafka.topic", "feed.fetch")
 	v.SetDefault("kafka.group_id", "phoenix-rss-worker")
+
+	// User Service defaults
+	v.SetDefault("user_service.address", "127.0.0.1:50051")
 }
 
 // validate performs basic validation on the loaded configuration
@@ -152,6 +160,10 @@ func (c *Config) validate() error {
 	}
 	if c.Kafka.GroupID == "" {
 		return fmt.Errorf("kafka group id cannot be empty")
+	}
+
+	if c.UserService.Address == "" {
+		return fmt.Errorf("user service address cannot be empty")
 	}
 
 	// Warn about default JWT secret in a production environment
