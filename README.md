@@ -1,106 +1,86 @@
-# Phoenix RSS - 一个 Go 实现的 RSS 聚合器
+# Phoenix RSS
 
-Phoenix RSS 是一个用 Go 语言编写的开源 RSS 聚合器。它提供了一个简单的 API 来添加和管理 RSS feed，并通过后台任务异步获取和存储文章。
+A modern, scalable RSS aggregator built on a microservice architecture in Go. This project is designed to showcase best practices in building distributed, cloud-native systems.
 
-## 架构设计
+## Architecture Philosophy
 
-Phoenix RSS 采用了微服务架构，核心由一个 API 服务器、用户服务和一个后台工作进程组成，通过 gRPC 和 Kafka 事件总线进行解耦。
+Phoenix RSS is built upon a foundation of clean architecture and domain-driven design principles. Our goal is to create a system that is not just functional, but also maintainable, scalable, and a pleasure to develop.
 
-### 核心组件
+-   **Service Independence**: Each microservice (API Gateway, User Service, Feed Service) is a self-contained unit with a single responsibility, its own data schema, and an independent deployment lifecycle.
+-   **Asynchronous & Event-Driven**: We use Kafka as the central nervous system of our application. Services communicate asynchronously through events, ensuring loose coupling and high resilience.
+-   **API-First Design**: Communication between services is contract-driven, using gRPC and Protocol Buffers for high-performance, strongly-typed internal APIs. The public-facing API is a RESTful interface managed by the API Gateway.
+-   **Observability by Design**: (Planned) The system is being built with observability in mind, preparing for integration with Prometheus and Grafana to provide deep insights into application performance and health.
 
--   **API 服务器**: 使用 [Gin](https://github.com/gin-gonic/gin) 框架构建，负责处理所有面向用户的 HTTP 请求。它提供了管理 RSS 源和查看文章的 RESTful API。
--   **用户服务**: 独立的 gRPC 微服务，专门负责用户管理、认证和授权功能。与主 API 服务器通过 gRPC 通信。
--   **后台工作进程**: 使用 Kafka 事件流消费，负责异步处理耗时任务，例如从 RSS 源抓取文章。这确保了 API 服务器可以快速响应用户请求。
--   **PostgreSQL 数据库**: 作为主数据存储，使用 [Gorm](https://gorm.io/) 作为 ORM，持久化存储 Feed 和文章信息。
--   **Kafka**: 作为事件总线，API 将事件写入主题，Worker 持续消费并处理。
+## Tech Stack
 
-## 技术栈
+-   **Language**: Go
+-   **API Gateway**: Gin
+-   **Microservice Communication**: gRPC + Protocol Buffers
+-   **Database**: PostgreSQL
+-   **Event Bus**: Kafka
+-   **Containerization**: Docker & Docker Compose
 
--   **语言**: Go
--   **Web 框架**: Gin
--   **微服务通信**: gRPC + Protocol Buffers
--   **数据库**: PostgreSQL
--   **ORM**: Gorm
--   **事件总线**: Kafka (kafka-go)
--   **容器化**: Docker
+## Directory Structure
 
-## 主要功能
-
--   **用户注册与登录**：使用 JWT 进行无状态认证。
--   **订阅 RSS Feed**：用户通过 URL 订阅，系统自动去重并复用已存在的 Feed 记录。
--   **查看已订阅的 Feed 列表**（仅限当前登录用户）。
--   **取消订阅 Feed**。
--   **异步抓取文章**：基于 Kafka 事件，可手动触发。
--   **阅读 Feed 文章**：仅能查看自己订阅的 Feed 下的文章。
-
-## 目录结构
+The project follows the standard Go project layout to ensure a clean separation of concerns.
 
 ```
 .
-├── api/                  # OpenAPI/Swagger 规范 (当前为空)
-├── cmd/                  # 应用入口
-│   ├── server/           # API 服务器主程序
-│   ├── user-service/     # 用户服务主程序
-│   └── worker/           # 后台工作进程主程序
-├── configs/              # 配置文件
-├── protos/               # Protocol Buffer 定义和生成的代码
-│   ├── user.proto        # 用户服务 gRPC 定义
-│   └── gen/go/user/      # 生成的 Go gRPC 代码
-├── internal/             # 私有应用和库代码
-│   ├── config/           # 配置加载
-│   ├── core/             # 核心业务逻辑 (Feed/Article Services + gRPC 客户端)
-│   ├── handler/          # HTTP 处理器
-│   ├── models/           # GORM 数据模型
-│   ├── repository/       # 数据仓库层
-│   ├── server/           # Gin 服务器设置和路由
-│   ├── events/           # 事件总线接口与实现（Kafka/Memory）
-│   ├── worker/           # 事件消费与处理
-│   └── user-service/     # 用户微服务实现
-│       ├── core/         # 用户服务业务逻辑
-│       ├── handler/      # gRPC 处理器
-│       ├── models/       # 用户数据模型
-│       └── repository/   # 用户数据仓库
-├── go.mod                # Go 模块文件
-├── db-setup.sh           # 数据库设置脚本
-├── redis-setup.sh        # Redis 设置脚本
-└── docker-compose.yml    # Docker Compose 配置
+├── cmd/                  # Application entry points for each service
+│   ├── server/           # API Gateway main
+│   ├── user-service/     # User Service main
+│   └── feed-service/     # Feed Service main
+├── internal/             # Private application and library code, isolated per service
+│   ├── feed-service/     # Feed service domain logic, handlers, and repository
+│   └── user-service/     # User service domain logic, handlers, and repository
+├── pkg/                  # Shared libraries intended for use across services
+│   ├── logger/           # Centralized logging utility
+│   └── ierr/             # Standardized error handling package
+├── protos/               # Protocol Buffer definitions and generated Go code
+├── configs/              # Project configuration files
+└── docker-compose.yml    # Docker Compose setup for local development
 ```
 
-## 运行应用
+## Getting Started
 
-应用现在包含三个独立的进程，你需要分别启动它们。
+The application consists of multiple services that must be run independently. For local development, using Docker Compose is the recommended approach.
 
-### 启动用户服务 (必须首先启动)
+### 1. Start Dependent Services
+
+Ensure Docker is running and start the infrastructure:
 
 ```bash
-# 启动用户服务 gRPC 服务器
-go run ./cmd/user-service/main.go
+docker-compose up -d postgres kafka
 ```
 
-### 启动 API 服务器
+### 2. Run Database Migrations
+
+Apply the latest database schema.
 
 ```bash
-# 先执行数据库迁移
 go run ./cmd/migrator up
-# 启动 API 服务器
+```
+
+### 3. Run the Services
+
+Services must be started in the correct order. Open a new terminal for each service.
+
+```bash
+# Start User Service (gRPC)
+go run ./cmd/user-service/main.go
+
+# Start Feed Service (gRPC)
+go run ./cmd/feed-service/main.go
+
+# Start the API Gateway (HTTP)
 go run ./cmd/server/main.go
 ```
 
-### 启动后台工作进程
+## Roadmap
 
-```bash
-# 启动 worker
-go run ./cmd/worker/main.go
-```
+This project is under active development. Our future plans include:
 
-### 迁移（Migration）
-
-```bash
-go run ./cmd/migrator up
-```
-
-## 运行测试
-
-```bash
-go test -v ./...
-```
+-   **AI Service**: A dedicated service for processing and enriching articles.
+-   **Scheduler Service**: A cron-based service for triggering periodic feed fetches.
+-   **Monitoring**: Full integration with Prometheus and Grafana.
+-   **Deployment**: Kubernetes manifests for production-grade deployment.
