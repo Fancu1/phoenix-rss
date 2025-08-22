@@ -12,15 +12,14 @@ import (
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 
+	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/config"
-	"github.com/Fancu1/phoenix-rss/internal/core"
 	"github.com/Fancu1/phoenix-rss/internal/events"
 	feedCore "github.com/Fancu1/phoenix-rss/internal/feed-service/core"
 	feedHandler "github.com/Fancu1/phoenix-rss/internal/feed-service/handler"
 	feedModels "github.com/Fancu1/phoenix-rss/internal/feed-service/models"
 	feedRepo "github.com/Fancu1/phoenix-rss/internal/feed-service/repository"
 	feedWorker "github.com/Fancu1/phoenix-rss/internal/feed-service/worker"
-	"github.com/Fancu1/phoenix-rss/internal/repository"
 	userCore "github.com/Fancu1/phoenix-rss/internal/user-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/handler"
 	userModels "github.com/Fancu1/phoenix-rss/internal/user-service/models"
@@ -48,7 +47,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// Connect to the database started by db-setup.sh
-	db := repository.InitDB(&cfg.Database)
+	db := feedRepo.InitDB(&cfg.Database)
 
 	// Run database migrations (ensure tables exist)
 	runMigrations(db)

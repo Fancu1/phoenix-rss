@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/Fancu1/phoenix-rss/internal/core"
+	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 )
 

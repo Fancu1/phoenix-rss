@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
+	"github.com/Fancu1/phoenix-rss/internal/api-service/server"
 	"github.com/Fancu1/phoenix-rss/internal/config"
-	"github.com/Fancu1/phoenix-rss/internal/core"
-	"github.com/Fancu1/phoenix-rss/internal/server"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 

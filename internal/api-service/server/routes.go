@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/Fancu1/phoenix-rss/internal/handler"
+	"github.com/Fancu1/phoenix-rss/internal/api-service/handler"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 )
 

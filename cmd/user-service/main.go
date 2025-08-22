@@ -9,7 +9,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
-	"github.com/Fancu1/phoenix-rss/internal/repository"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/handler"
 	userRepo "github.com/Fancu1/phoenix-rss/internal/user-service/repository"
@@ -27,7 +26,7 @@ func main() {
 	logger := logger.New(slog.LevelDebug)
 
 	// initialize database connection
-	db := repository.InitDB(&cfg.Database)
+	db := userRepo.InitDB(&cfg.Database)
 
 	// initialize user repository and service
 	userRepository := userRepo.NewUserRepository(db)

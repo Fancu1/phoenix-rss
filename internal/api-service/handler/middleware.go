@@ -8,7 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
-	"github.com/Fancu1/phoenix-rss/internal/core"
+	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )

@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Fancu1/phoenix-rss/internal/models"
+	"github.com/Fancu1/phoenix-rss/internal/feed-service/models"
 )
 
 const (

@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/Fancu1/phoenix-rss/internal/models"
+	"github.com/Fancu1/phoenix-rss/internal/user-service/models"
 	userpb "github.com/Fancu1/phoenix-rss/protos/gen/go/user"
 )
 
