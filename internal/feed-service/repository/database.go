@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"log"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -12,16 +13,12 @@ import (
 func InitDB(cfg *config.DatabaseConfig) *gorm.DB {
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
 		cfg.Host, cfg.User, cfg.Password, cfg.DBName, cfg.Port, cfg.SSLMode)
-	fmt.Printf("Connecting to database: %s\n", dsn)
 
-	basicDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		panic("failed to connect database")
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	return basicDB
-}
-
-func InitSchema(db *gorm.DB) error {
-	return nil
+	log.Println("Database connected and migrated successfully")
+	return db
 }

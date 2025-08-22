@@ -8,10 +8,10 @@ import (
 
 	"github.com/mmcdole/gofeed"
 
+	"github.com/Fancu1/phoenix-rss/internal/feed-service/models"
+	"github.com/Fancu1/phoenix-rss/internal/feed-service/repository"
 	"github.com/Fancu1/phoenix-rss/internal/ierr"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
-	"github.com/Fancu1/phoenix-rss/internal/models"
-	"github.com/Fancu1/phoenix-rss/internal/repository"
 )
 
 type FeedServiceInterface interface {
@@ -20,6 +20,7 @@ type FeedServiceInterface interface {
 	SubscribeToFeed(ctx context.Context, userID uint, url string) (*models.Feed, error)
 	ListUserFeeds(ctx context.Context, userID uint) ([]*models.Feed, error)
 	UnsubscribeFromFeed(ctx context.Context, userID, feedID uint) error
+	IsUserSubscribed(ctx context.Context, userID, feedID uint) (bool, error)
 }
 
 type FeedService struct {
@@ -82,14 +83,11 @@ func (s *FeedService) ListAllFeeds(ctx context.Context) ([]*models.Feed, error) 
 	return feeds, nil
 }
 
-// SubscribeToFeed creates a subscription between user and feed
-// If the feed doesn't exist, it will be created first
 func (s *FeedService) SubscribeToFeed(ctx context.Context, userID uint, url string) (*models.Feed, error) {
 	log := logger.FromContext(ctx)
 
 	log.Info("attempting to subscribe user to feed", "user_id", userID, "url", url)
 
-	// First, try to find existing feed by URL
 	existingFeed, err := s.repo.GetByURL(ctx, url)
 	if err != nil && err.Error() != "record not found" {
 		log.Error("failed to check for existing feed", "url", url, "error", err.Error())
@@ -102,15 +100,13 @@ func (s *FeedService) SubscribeToFeed(ctx context.Context, userID uint, url stri
 		feed = existingFeed
 	} else {
 		log.Info("feed does not exist, creating new feed", "url", url)
-		// Feed doesn't exist, create it
 		feed, err = s.AddFeedByURL(ctx, url)
 		if err != nil {
 			log.Error("failed to create new feed for subscription", "url", url, "error", err.Error())
-			return nil, err // Already wrapped with context in AddFeedByURL
+			return nil, err
 		}
 	}
 
-	// Check if user is already subscribed
 	isSubscribed, err := s.repo.IsUserSubscribed(ctx, userID, feed.ID)
 	if err != nil {
 		log.Error("failed to check subscription status", "user_id", userID, "feed_id", feed.ID, "error", err.Error())
@@ -122,7 +118,6 @@ func (s *FeedService) SubscribeToFeed(ctx context.Context, userID uint, url stri
 		return nil, fmt.Errorf("user %d already subscribed to feed %d (%s): %w", userID, feed.ID, feed.Title, ierr.ErrAlreadySubscribed)
 	}
 
-	// Create subscription
 	subscription := &models.Subscription{
 		UserID: userID,
 		FeedID: feed.ID,
@@ -140,7 +135,6 @@ func (s *FeedService) SubscribeToFeed(ctx context.Context, userID uint, url stri
 	return feed, nil
 }
 
-// ListUserFeeds returns all feeds subscribed by a specific user
 func (s *FeedService) ListUserFeeds(ctx context.Context, userID uint) ([]*models.Feed, error) {
 	log := logger.FromContext(ctx)
 
@@ -156,13 +150,11 @@ func (s *FeedService) ListUserFeeds(ctx context.Context, userID uint) ([]*models
 	return feeds, nil
 }
 
-// UnsubscribeFromFeed removes a subscription between user and feed
 func (s *FeedService) UnsubscribeFromFeed(ctx context.Context, userID, feedID uint) error {
 	log := logger.FromContext(ctx)
 
 	log.Info("unsubscribing user from feed", "user_id", userID, "feed_id", feedID)
 
-	// Check if user is subscribed
 	isSubscribed, err := s.repo.IsUserSubscribed(ctx, userID, feedID)
 	if err != nil {
 		log.Error("failed to check subscription status", "user_id", userID, "feed_id", feedID, "error", err.Error())
@@ -182,4 +174,20 @@ func (s *FeedService) UnsubscribeFromFeed(ctx context.Context, userID, feedID ui
 
 	log.Info("successfully unsubscribed user from feed", "user_id", userID, "feed_id", feedID)
 	return nil
+}
+
+// IsUserSubscribed check if a user is subscribed to a feed
+func (s *FeedService) IsUserSubscribed(ctx context.Context, userID, feedID uint) (bool, error) {
+	log := logger.FromContext(ctx)
+
+	log.Debug("checking user subscription", "user_id", userID, "feed_id", feedID)
+
+	isSubscribed, err := s.repo.IsUserSubscribed(ctx, userID, feedID)
+	if err != nil {
+		log.Error("failed to check subscription status", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		return false, ierr.NewDatabaseError(fmt.Errorf("failed to check subscription status for user %d and feed %d: %w", userID, feedID, err))
+	}
+
+	log.Debug("subscription check completed", "user_id", userID, "feed_id", feedID, "is_subscribed", isSubscribed)
+	return isSubscribed, nil
 }

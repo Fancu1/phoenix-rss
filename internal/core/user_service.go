@@ -13,6 +13,14 @@ import (
 	userpb "github.com/Fancu1/phoenix-rss/protos/gen/go/user"
 )
 
+// UserServiceInterface define the contract for user service operations
+type UserServiceInterface interface {
+	Register(username, password string) (*models.User, error)
+	Login(username, password string) (string, error)
+	ValidateToken(tokenString string) (*jwt.Token, error)
+	GetUserFromToken(tokenString string) (*models.User, error)
+}
+
 // UserServiceClient implement UserServiceInterface using gRPC
 type UserServiceClient struct {
 	client userpb.UserServiceClient

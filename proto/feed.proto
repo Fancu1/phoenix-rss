@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package feed.v1;
+
+option go_package = "github.com/Fancu1/phoenix-rss/protos/gen/go/feed;feedpb";
+
+// Feed message represents RSS feed information
+message Feed {
+  uint64 id = 1;
+  string title = 2;
+  string url = 3;
+  string description = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+// Article message represents an individual article
+message Article {
+  uint64 id = 1;
+  uint64 feed_id = 2;
+  string title = 3;
+  string url = 4;
+  string description = 5;
+  string content = 6;
+  string created_at = 7;
+  string updated_at = 8;
+  bool read = 9;
+  bool starred = 10;
+  string published_at = 11;
+}
+
+// Subscribe to feed requests and responses
+message SubscribeToFeedRequest {
+  uint64 user_id = 1;
+  string feed_url = 2;
+}
+
+message SubscribeToFeedResponse {
+  Feed feed = 1;
+}
+
+// List user feeds requests and responses
+message ListUserFeedsRequest {
+  uint64 user_id = 1;
+}
+
+message ListUserFeedsResponse {
+  repeated Feed feeds = 1;
+}
+
+// Unsubscribe from feed requests and responses
+message UnsubscribeFromFeedRequest {
+  uint64 user_id = 1;
+  uint64 feed_id = 2;
+}
+
+message UnsubscribeFromFeedResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// List articles requests and responses
+message ListArticlesRequest {
+  uint64 user_id = 1;
+  uint64 feed_id = 2;
+}
+
+message ListArticlesResponse {
+  repeated Article articles = 1;
+}
+
+// Trigger manual fetch requests and responses
+message TriggerFetchRequest {
+  uint64 user_id = 1;
+  uint64 feed_id = 2;
+}
+
+message TriggerFetchResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// List all feeds (for backward compatibility)
+message ListAllFeedsRequest {
+  // Empty request - returns all feeds in system
+}
+
+message ListAllFeedsResponse {
+  repeated Feed feeds = 1;
+}
+
+// Check subscription status
+message CheckSubscriptionRequest {
+  uint64 user_id = 1;
+  uint64 feed_id = 2;
+}
+
+message CheckSubscriptionResponse {
+  bool is_subscribed = 1;
+}
+
+// FeedService defines the gRPC service for feed management
+service FeedService {
+  // Subscribe user to a new RSS feed
+  rpc SubscribeToFeed(SubscribeToFeedRequest) returns (SubscribeToFeedResponse);
+  
+  // Get all feeds subscribed by a specific user
+  rpc ListUserFeeds(ListUserFeedsRequest) returns (ListUserFeedsResponse);
+  
+  // Unsubscribe user from a feed
+  rpc UnsubscribeFromFeed(UnsubscribeFromFeedRequest) returns (UnsubscribeFromFeedResponse);
+  
+  // Get articles for a specific feed (user must be subscribed)
+  rpc ListArticles(ListArticlesRequest) returns (ListArticlesResponse);
+  
+  // Trigger manual fetch for a specific feed
+  rpc TriggerFetch(TriggerFetchRequest) returns (TriggerFetchResponse);
+  
+  // List all feeds in the system (deprecated, for backward compatibility)
+  rpc ListAllFeeds(ListAllFeedsRequest) returns (ListAllFeedsResponse);
+  
+  // Check if user is subscribed to a feed
+  rpc CheckSubscription(CheckSubscriptionRequest) returns (CheckSubscriptionResponse);
+}

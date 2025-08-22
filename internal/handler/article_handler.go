@@ -8,33 +8,25 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/Fancu1/phoenix-rss/internal/core"
-	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/ierr"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
-	"github.com/Fancu1/phoenix-rss/internal/repository"
 )
 
 type ArticleHandler struct {
-	logger   *slog.Logger
-	producer events.Producer
-	service  core.ArticleServiceInterface
-	feedRepo *repository.FeedRepository
+	logger  *slog.Logger
+	service core.ArticleServiceInterface
 }
 
-func NewArticleHandler(logger *slog.Logger, producer events.Producer, articleService core.ArticleServiceInterface, feedRepo *repository.FeedRepository) *ArticleHandler {
+func NewArticleHandler(logger *slog.Logger, articleService core.ArticleServiceInterface) *ArticleHandler {
 	return &ArticleHandler{
-		logger:   logger,
-		producer: producer,
-		service:  articleService,
-		feedRepo: feedRepo,
+		logger:  logger,
+		service: articleService,
 	}
 }
 
 func (h *ArticleHandler) TriggerFetch(c *gin.Context) {
-	// Get contextual logger for this request
 	log := logger.FromContext(c.Request.Context())
 
-	// Get user ID from context
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
 		log.Error("user not authenticated in protected route")
@@ -52,27 +44,13 @@ func (h *ArticleHandler) TriggerFetch(c *gin.Context) {
 
 	log.Info("user triggering feed fetch", "user_id", userID, "feed_id", feedID)
 
-	// Check if user is subscribed to this feed
-	isSubscribed, err := h.feedRepo.IsUserSubscribed(c.Request.Context(), userID, uint(feedID))
-	if err != nil {
-		log.Error("failed to check subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
-		c.Error(ierr.NewDatabaseError(err))
+	if err := h.service.TriggerFetch(c.Request.Context(), userID, uint(feedID)); err != nil {
+		log.Error("failed to trigger feed fetch", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		c.Error(err)
 		return
 	}
 
-	if !isSubscribed {
-		log.Warn("user not subscribed to feed", "user_id", userID, "feed_id", feedID)
-		c.Error(ierr.ErrNotSubscribed)
-		return
-	}
-
-	if err := h.producer.PublishFeedFetch(c.Request.Context(), uint(feedID)); err != nil {
-		log.Error("failed to publish feed fetch event", "feed_id", feedID, "error", err.Error())
-		c.Error(ierr.NewTaskQueueError(err))
-		return
-	}
-
-	log.Info("feed fetch event published successfully", "feed_id", feedID, "user_id", userID)
+	log.Info("feed fetch triggered successfully", "feed_id", feedID, "user_id", userID)
 
 	c.JSON(http.StatusAccepted, gin.H{"message": "Feed fetch job accepted"})
 }
@@ -99,21 +77,7 @@ func (h *ArticleHandler) ListArticles(c *gin.Context) {
 
 	log.Info("user requesting articles", "user_id", userID, "feed_id", feedID)
 
-	// Check if user is subscribed to this feed
-	isSubscribed, err := h.feedRepo.IsUserSubscribed(c.Request.Context(), userID, uint(feedID))
-	if err != nil {
-		log.Error("failed to check subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
-		c.Error(ierr.NewDatabaseError(err))
-		return
-	}
-
-	if !isSubscribed {
-		log.Warn("user not subscribed to feed", "user_id", userID, "feed_id", feedID)
-		c.Error(ierr.ErrNotSubscribed)
-		return
-	}
-
-	articles, err := h.service.ListArticlesByFeedID(c.Request.Context(), uint(feedID))
+	articles, err := h.service.ListArticlesByFeedID(c.Request.Context(), userID, uint(feedID))
 	if err != nil {
 		log.Error("failed to list articles", "user_id", userID, "feed_id", feedID, "error", err.Error())
 		c.Error(err)

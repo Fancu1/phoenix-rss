@@ -6,12 +6,12 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Fancu1/phoenix-rss/internal/core"
 	"github.com/Fancu1/phoenix-rss/internal/events"
+	"github.com/Fancu1/phoenix-rss/internal/feed-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
 )
 
-// EventHandler consume events and triggers article fetching
+// EventHandler consume events and trigger article fetching
 type EventHandler struct {
 	logger         *slog.Logger
 	articleService *core.ArticleService

@@ -25,7 +25,6 @@ type AddFeedRequest struct {
 
 // AddFeed now creates a subscription between the authenticated user and the feed
 func (h *FeedHandler) AddFeed(c *gin.Context) {
-	// Get contextual logger for this request
 	log := logger.FromContext(c.Request.Context())
 
 	var req AddFeedRequest
@@ -36,7 +35,6 @@ func (h *FeedHandler) AddFeed(c *gin.Context) {
 		return
 	}
 
-	// Get user ID from context
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
 		log.Error("user not authenticated in protected route")

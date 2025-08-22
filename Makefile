@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: migrate-up migrate-down migrate-create
+.PHONY: migrate-up migrate-down migrate-create build-server build-user-service build-feed-service build-all run-server run-user-service run-feed-service
 
 migrate-up:
 	go run ./cmd/migrator up
@@ -18,4 +18,25 @@ migrate-create:
 	 touch $$up $$down; \
 	 echo "created $$up and $$down"
 
+# Build targets
+build-server:
+	go build -o bin/server ./cmd/server
+
+build-user-service:
+	go build -o bin/user-service ./cmd/user-service
+
+build-feed-service:
+	go build -o bin/feed-service ./cmd/feed-service
+
+build-all: build-server build-user-service build-feed-service
+
+# Run targets
+run-server:
+	go run ./cmd/server
+
+run-user-service:
+	go run ./cmd/user-service
+
+run-feed-service:
+	go run ./cmd/feed-service
 

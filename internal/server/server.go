@@ -8,9 +8,7 @@ import (
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/core"
-	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/handler"
-	"github.com/Fancu1/phoenix-rss/internal/repository"
 )
 
 type Server struct {
@@ -23,9 +21,9 @@ type Server struct {
 	authMiddleware *handler.AuthMiddleware
 }
 
-func New(cfg *config.Config, logger *slog.Logger, producer events.Producer, feedService core.FeedServiceInterface, articleService *core.ArticleService, userService core.UserServiceInterface, feedRepo *repository.FeedRepository) *Server {
+func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceInterface, articleService core.ArticleServiceInterface, userService core.UserServiceInterface) *Server {
 	feedHandler := handler.NewFeedHandler(feedService)
-	articleHandler := handler.NewArticleHandler(logger, producer, articleService, feedRepo)
+	articleHandler := handler.NewArticleHandler(logger, articleService)
 	userHandler := handler.NewUserHandler(userService)
 	authMiddleware := handler.NewAuthMiddleware(userService)
 

@@ -88,3 +88,43 @@ func NewValidationError(message string) *AppError {
 		HTTPStatus: http.StatusBadRequest,
 	}
 }
+
+// IsValidationError check if the error is a validation error
+func IsValidationError(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code >= 1300 && appErr.Code < 1400
+	}
+	return false
+}
+
+// IsDatabaseError check if the error is a database error
+func IsDatabaseError(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == 9002
+	}
+	return false
+}
+
+// IsNotFound check if the error is a not found error
+func IsNotFound(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.HTTPStatus == http.StatusNotFound
+	}
+	return false
+}
+
+// IsUnauthorized check if the error is an unauthorized error
+func IsUnauthorized(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.HTTPStatus == http.StatusUnauthorized
+	}
+	return false
+}
+
+// IsAlreadyExists check if the error is an already exists error
+func IsAlreadyExists(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.HTTPStatus == http.StatusConflict
+	}
+	return false
+}

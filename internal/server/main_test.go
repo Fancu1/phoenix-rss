@@ -15,12 +15,18 @@ import (
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/core"
 	"github.com/Fancu1/phoenix-rss/internal/events"
+	feedCore "github.com/Fancu1/phoenix-rss/internal/feed-service/core"
+	feedHandler "github.com/Fancu1/phoenix-rss/internal/feed-service/handler"
+	feedModels "github.com/Fancu1/phoenix-rss/internal/feed-service/models"
+	feedRepo "github.com/Fancu1/phoenix-rss/internal/feed-service/repository"
+	feedWorker "github.com/Fancu1/phoenix-rss/internal/feed-service/worker"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
 	userCore "github.com/Fancu1/phoenix-rss/internal/user-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/handler"
+	userModels "github.com/Fancu1/phoenix-rss/internal/user-service/models"
 	userRepo "github.com/Fancu1/phoenix-rss/internal/user-service/repository"
-	"github.com/Fancu1/phoenix-rss/internal/worker"
+	feedpb "github.com/Fancu1/phoenix-rss/protos/gen/go/feed"
 	userpb "github.com/Fancu1/phoenix-rss/protos/gen/go/user"
 )
 
@@ -31,6 +37,7 @@ type TestApp struct {
 	DB           *gorm.DB
 	StopFunc     func()
 	UserGRPCStop func()
+	FeedGRPCStop func()
 }
 
 func TestMain(m *testing.M) {
@@ -43,55 +50,51 @@ func TestMain(m *testing.M) {
 	// Connect to the database started by db-setup.sh
 	db := repository.InitDB(&cfg.Database)
 
+	// Run database migrations (ensure tables exist)
+	runMigrations(db)
+
 	// Start a test gRPC User Service
 	userGRPCAddr := "127.0.0.1:50052" // Use different port for testing
 	userGRPCStop := startTestUserService(db, cfg.Auth.JWTSecret, userGRPCAddr)
 
-	// Wait a moment for the gRPC server to start
-	time.Sleep(100 * time.Millisecond)
+	// Start a test gRPC Feed Service
+	feedGRPCAddr := "127.0.0.1:50054" // Use different port for testing
+	feedGRPCStop := startTestFeedService(db, feedGRPCAddr)
 
-	// Setup services and handlers
-	feedRepo := repository.NewFeedRepository(db)
-	articleRepo := repository.NewArticleRepository(db)
-	feedService := core.NewFeedService(feedRepo, logger.New(slog.LevelDebug))
-	articleService := core.NewArticleService(feedRepo, articleRepo, logger.New(slog.LevelDebug))
+	// Wait a moment for the gRPC servers to start
+	time.Sleep(200 * time.Millisecond)
 
-	// Create gRPC client for user service
+	// Create gRPC clients
 	userService, err := core.NewUserServiceClient(userGRPCAddr)
 	if err != nil {
 		log.Fatalf("Failed to create user service client: %v", err)
 	}
 
-	// Create event handler for processing
-	eventHandler := worker.NewEventHandler(logger.New(slog.LevelDebug), articleService)
+	feedService, err := core.NewFeedServiceClient(feedGRPCAddr)
+	if err != nil {
+		log.Fatalf("Failed to create feed service client: %v", err)
+	}
 
-	// In tests, use in-memory bus to avoid Kafka dependency
-	memBus := events.NewMemoryBus(logger.New(slog.LevelDebug), eventHandler.HandleFeedFetch)
+	articleService, err := core.NewArticleServiceClient(feedGRPCAddr)
+	if err != nil {
+		log.Fatalf("Failed to create article service client: %v", err)
+	}
 
-	// Create server with memory bus as producer
-	s := New(cfg, logger.New(slog.LevelDebug), memBus, feedService, articleService, userService, feedRepo)
-
-	// Create worker and register the memory bus as consumer
-	appWorker := worker.NewWorker(logger.New(slog.LevelDebug))
-	appWorker.RegisterConsumer(memBus)
-
-	// Start worker in background
-	go func() {
-		if err := appWorker.Start(); err != nil {
-			log.Printf("Worker error: %v", err)
-		}
-	}()
+	// Create server with gRPC clients
+	s := New(cfg, logger.New(slog.LevelDebug), feedService, articleService, userService)
 
 	app = &TestApp{
 		Server:       httptest.NewServer(s.engine),
 		DB:           db,
-		StopFunc:     appWorker.Stop,
+		StopFunc:     func() {}, // No worker in new architecture
 		UserGRPCStop: userGRPCStop,
+		FeedGRPCStop: feedGRPCStop,
 	}
 	defer app.Server.Close()
-	defer appWorker.Stop()
 	defer userGRPCStop()
+	defer feedGRPCStop()
 	defer userService.Close()
+	defer feedService.Close()
 
 	// Run tests
 	code := m.Run()
@@ -128,5 +131,80 @@ func startTestUserService(db *gorm.DB, jwtSecret, address string) func() {
 	// Return stop function
 	return func() {
 		grpcServer.GracefulStop()
+	}
+}
+
+// startTestFeedService starts a gRPC feed service for testing with in-memory Kafka
+func startTestFeedService(db *gorm.DB, address string) func() {
+	// Use the same database instance for consistency in tests
+	feedDB := db
+
+	// Initialize repositories
+	feedRepository := feedRepo.NewFeedRepository(feedDB)
+	articleRepository := feedRepo.NewArticleRepository(feedDB)
+
+	// Initialize services
+	feedService := feedCore.NewFeedService(feedRepository, logger.New(slog.LevelDebug))
+	articleService := feedCore.NewArticleService(feedRepository, articleRepository, logger.New(slog.LevelDebug))
+
+	// Create event handler for processing
+	eventHandler := feedWorker.NewEventHandler(logger.New(slog.LevelDebug), articleService)
+
+	// In tests, use in-memory bus to avoid Kafka dependency
+	memBus := events.NewMemoryBus(logger.New(slog.LevelDebug), eventHandler.HandleFeedFetch)
+
+	// Create gRPC handler with memory bus as producer
+	grpcHandler := feedHandler.NewFeedServiceHandler(
+		logger.New(slog.LevelDebug),
+		feedService,
+		articleService,
+		memBus,
+	)
+
+	// Create worker and register the memory bus as consumer
+	appWorker := feedWorker.NewWorker(logger.New(slog.LevelDebug))
+	appWorker.RegisterConsumer(memBus)
+
+	// Start worker in background
+	go func() {
+		if err := appWorker.Start(); err != nil {
+			log.Printf("Feed service worker error: %v", err)
+		}
+	}()
+
+	// Create gRPC server
+	grpcServer := grpc.NewServer()
+	feedpb.RegisterFeedServiceServer(grpcServer, grpcHandler)
+
+	// Start listening
+	lis, err := net.Listen("tcp", address)
+	if err != nil {
+		log.Fatalf("Failed to listen on %s: %v", address, err)
+	}
+
+	// Start server in background
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Printf("Feed gRPC server error: %v", err)
+		}
+	}()
+
+	// Return stop function
+	return func() {
+		appWorker.Stop()
+		grpcServer.GracefulStop()
+	}
+}
+
+// runMigrations perform GORM AutoMigrate for all models to ensure database schema is ready
+func runMigrations(db *gorm.DB) {
+	err := db.AutoMigrate(
+		&userModels.User{},
+		&feedModels.Feed{},
+		&feedModels.Article{},
+		&feedModels.Subscription{},
+	)
+	if err != nil {
+		log.Fatalf("Failed to migrate database: %v", err)
 	}
 }

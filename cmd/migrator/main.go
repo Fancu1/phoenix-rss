@@ -79,8 +79,8 @@ func run() error {
 
 func buildPostgresURL(cfg *config.Config) string {
 	db := cfg.Database
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		db.User, db.Password, db.Host, db.Port, db.Database, db.SSLMode,
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		db.User, db.Password, db.Host, db.Port, db.DBName, db.SSLMode,
 	)
 }
 

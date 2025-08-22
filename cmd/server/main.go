@@ -7,9 +7,7 @@ import (
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/core"
-	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/logger"
-	"github.com/Fancu1/phoenix-rss/internal/repository"
 	"github.com/Fancu1/phoenix-rss/internal/server"
 )
 
@@ -22,25 +20,20 @@ func main() {
 
 	logger := logger.New(slog.LevelDebug)
 
-	db := repository.InitDB(&cfg.Database)
+	feedSvc, err := core.NewFeedServiceClient(cfg.FeedService.Address)
+	if err != nil {
+		logger.Error("failed to connect to feed service", "address", cfg.FeedService.Address, "error", err)
+		os.Exit(1)
+	}
+	defer feedSvc.Close()
 
-	// Initialize Kafka producer
-	producer := events.NewKafkaProducer(logger, events.KafkaConfig{
-		Brokers: cfg.Kafka.Brokers,
-		Topic:   cfg.Kafka.Topic,
-		GroupID: cfg.Kafka.GroupID,
-	})
-	defer producer.Close()
+	articleSvc, err := core.NewArticleServiceClient(cfg.FeedService.Address)
+	if err != nil {
+		logger.Error("failed to connect to feed service for articles", "address", cfg.FeedService.Address, "error", err)
+		os.Exit(1)
+	}
+	defer articleSvc.Close()
 
-	// Initialize repositories
-	feedRepo := repository.NewFeedRepository(db)
-	articleRepo := repository.NewArticleRepository(db)
-
-	// Initialize services
-	feedSrv := core.NewFeedService(feedRepo, logger)
-	articleSvc := core.NewArticleService(feedRepo, articleRepo, logger)
-
-	// Initialize user service gRPC client
 	userSvc, err := core.NewUserServiceClient(cfg.UserService.Address)
 	if err != nil {
 		logger.Error("failed to connect to user service", "address", cfg.UserService.Address, "error", err)
@@ -48,7 +41,7 @@ func main() {
 	}
 	defer userSvc.Close()
 
-	srv := server.New(cfg, logger, producer, feedSrv, articleSvc, userSvc, feedRepo)
+	srv := server.New(cfg, logger, feedSvc, articleSvc, userSvc)
 	if err := srv.Start(); err != nil {
 		logger.Error("failed to start server", "error", err)
 		os.Exit(1)

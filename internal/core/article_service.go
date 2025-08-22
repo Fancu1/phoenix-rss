@@ -3,133 +3,119 @@ package core
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
-	"github.com/mmcdole/gofeed"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/Fancu1/phoenix-rss/internal/ierr"
-	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/models"
-	"github.com/Fancu1/phoenix-rss/internal/repository"
+	feedpb "github.com/Fancu1/phoenix-rss/protos/gen/go/feed"
 )
 
+// ArticleServiceInterface define the interface for article operations
 type ArticleServiceInterface interface {
 	FetchAndSaveArticles(ctx context.Context, feedID uint) ([]*models.Article, error)
-	ListArticlesByFeedID(ctx context.Context, feedID uint) ([]*models.Article, error)
+	ListArticlesByFeedID(ctx context.Context, userID, feedID uint) ([]*models.Article, error)
+	TriggerFetch(ctx context.Context, userID, feedID uint) error
 }
 
-type ArticleService struct {
-	parser      *gofeed.Parser
-	feedRepo    *repository.FeedRepository
-	articleRepo *repository.ArticleRepository
-	logger      *slog.Logger
+// ArticleServiceClient implement ArticleServiceInterface using gRPC
+type ArticleServiceClient struct {
+	client feedpb.FeedServiceClient
+	conn   *grpc.ClientConn
 }
 
-func NewArticleService(feedRepo *repository.FeedRepository, articleRepo *repository.ArticleRepository, logger *slog.Logger) *ArticleService {
-	return &ArticleService{
-		parser:      gofeed.NewParser(),
-		feedRepo:    feedRepo,
-		articleRepo: articleRepo,
-		logger:      logger,
-	}
-}
-
-func (s *ArticleService) FetchAndSaveArticles(ctx context.Context, feedID uint) ([]*models.Article, error) {
-	log := logger.FromContext(ctx)
-
-	log.Info("fetching articles for feed", "feed_id", feedID)
-
-	// Get the feed
-	feed, err := s.feedRepo.GetByID(ctx, feedID)
+// NewArticleServiceClient create a new gRPC client for Article operations
+func NewArticleServiceClient(address string) (*ArticleServiceClient, error) {
+	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Error("failed to get feed", "feed_id", feedID, "error", err.Error())
-		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to get feed %d for article fetch: %w", feedID, err))
+		return nil, fmt.Errorf("failed to connect to Feed Service at %s: %w", address, err)
 	}
 
-	if feed == nil {
-		log.Error("feed not found", "feed_id", feedID)
-		return nil, fmt.Errorf("feed %d not found: %w", feedID, ierr.ErrFeedNotFound)
+	client := feedpb.NewFeedServiceClient(conn)
+	return &ArticleServiceClient{
+		client: client,
+		conn:   conn,
+	}, nil
+}
+
+// Close the gRPC connection
+func (c *ArticleServiceClient) Close() error {
+	return c.conn.Close()
+}
+
+// FetchAndSaveArticles is not available via gRPC as it's an internal operation
+func (c *ArticleServiceClient) FetchAndSaveArticles(ctx context.Context, feedID uint) ([]*models.Article, error) {
+	return nil, fmt.Errorf("FetchAndSaveArticles not available via gRPC client")
+}
+
+// ListArticlesByFeedID return articles for a specific feed
+func (c *ArticleServiceClient) ListArticlesByFeedID(ctx context.Context, userID, feedID uint) ([]*models.Article, error) {
+	req := &feedpb.ListArticlesRequest{
+		UserId: uint64(userID),
+		FeedId: uint64(feedID),
 	}
 
-	log.Info("parsing feed from URL", "feed_id", feedID, "url", feed.URL)
-
-	// Parse the feed
-	parsedFeed, err := s.parser.ParseURLWithContext(feed.URL, ctx)
+	resp, err := c.client.ListArticles(ctx, req)
 	if err != nil {
-		log.Error("failed to parse feed", "feed_id", feedID, "url", feed.URL, "error", err.Error())
-		return nil, fmt.Errorf("failed to parse feed %d (%s) from URL '%s': %w", feedID, feed.Title, feed.URL, ierr.ErrFeedFetchFailed.WithCause(err))
+		return nil, MapGRPCError(err)
 	}
 
-	log.Info("parsed feed successfully", "feed_id", feedID, "article_count", len(parsedFeed.Items))
-
-	var articles []*models.Article
-	var newArticles []*models.Article
-
-	for _, item := range parsedFeed.Items {
-		// Check if article already exists
-		exists, err := s.articleRepo.ExistsByURL(ctx, item.Link)
+	articles := make([]*models.Article, len(resp.Articles))
+	for i, pbArticle := range resp.Articles {
+		article, err := c.convertPbToArticle(pbArticle)
 		if err != nil {
-			log.Warn("failed to check if article exists", "url", item.Link, "error", err.Error())
-			continue
+			return nil, fmt.Errorf("failed to convert article %d: %w", pbArticle.Id, err)
 		}
-
-		if exists {
-			log.Debug("article already exists, skipping", "url", item.Link)
-			continue
-		}
-
-		publishedAt := time.Now()
-		if item.PublishedParsed != nil {
-			publishedAt = *item.PublishedParsed
-		}
-
-		article := &models.Article{
-			Title:       item.Title,
-			URL:         item.Link,
-			Description: item.Description,
-			Content:     item.Content,
-			FeedID:      feedID,
-			PublishedAt: publishedAt,
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
-		}
-
-		articles = append(articles, article)
-		newArticles = append(newArticles, article)
-
-		log.Debug("prepared new article", "title", item.Title, "url", item.Link)
+		articles[i] = article
 	}
 
-	if len(newArticles) == 0 {
-		log.Info("no new articles to save", "feed_id", feedID)
-		return articles, nil
-	}
-
-	log.Info("saving new articles", "feed_id", feedID, "new_article_count", len(newArticles))
-
-	// Save all new articles in batch
-	err = s.articleRepo.CreateBatch(ctx, newArticles)
-	if err != nil {
-		log.Error("failed to save articles", "feed_id", feedID, "error", err.Error())
-		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to save %d articles for feed %d (%s): %w", len(newArticles), feedID, feed.Title, err))
-	}
-
-	log.Info("successfully saved articles", "feed_id", feedID, "saved_count", len(newArticles))
 	return articles, nil
 }
 
-func (s *ArticleService) ListArticlesByFeedID(ctx context.Context, feedID uint) ([]*models.Article, error) {
-	log := logger.FromContext(ctx)
-
-	log.Info("listing articles for feed", "feed_id", feedID)
-
-	articles, err := s.articleRepo.GetByFeedID(ctx, feedID)
-	if err != nil {
-		log.Error("failed to list articles", "feed_id", feedID, "error", err.Error())
-		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to list articles for feed %d: %w", feedID, err))
+// TriggerFetch trigger a manual fetch for a specific feed
+func (c *ArticleServiceClient) TriggerFetch(ctx context.Context, userID, feedID uint) error {
+	req := &feedpb.TriggerFetchRequest{
+		UserId: uint64(userID),
+		FeedId: uint64(feedID),
 	}
 
-	log.Info("successfully listed articles", "feed_id", feedID, "count", len(articles))
-	return articles, nil
+	_, err := c.client.TriggerFetch(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to trigger fetch: %w", err)
+	}
+
+	return nil
+}
+
+// Helper method for protobuf conversion
+func (c *ArticleServiceClient) convertPbToArticle(pbArticle *feedpb.Article) (*models.Article, error) {
+	createdAt, err := time.Parse(time.RFC3339, pbArticle.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse created_at: %w", err)
+	}
+
+	updatedAt, err := time.Parse(time.RFC3339, pbArticle.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse updated_at: %w", err)
+	}
+
+	publishedAt, err := time.Parse(time.RFC3339, pbArticle.PublishedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse published_at: %w", err)
+	}
+
+	return &models.Article{
+		ID:          uint(pbArticle.Id),
+		FeedID:      uint(pbArticle.FeedId),
+		Title:       pbArticle.Title,
+		URL:         pbArticle.Url,
+		Description: pbArticle.Description,
+		Content:     pbArticle.Content,
+		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
+		Read:        pbArticle.Read,
+		Starred:     pbArticle.Starred,
+		PublishedAt: publishedAt,
+	}, nil
 }

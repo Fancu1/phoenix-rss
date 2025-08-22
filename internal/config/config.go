@@ -15,6 +15,7 @@ type Config struct {
 	Auth        AuthConfig        `mapstructure:"auth"`
 	Kafka       KafkaConfig       `mapstructure:"kafka"`
 	UserService UserServiceConfig `mapstructure:"user_service"`
+	FeedService FeedServiceConfig `mapstructure:"feed_service"`
 }
 
 // ServerConfig is the config for the server
@@ -25,10 +26,10 @@ type ServerConfig struct {
 // DatabaseConfig is the config for the database
 type DatabaseConfig struct {
 	Host     string `mapstructure:"host"`
-	Port     string `mapstructure:"port"`
+	Port     int    `mapstructure:"port"`
 	User     string `mapstructure:"user"`
 	Password string `mapstructure:"password"`
-	Database string `mapstructure:"database"`
+	DBName   string `mapstructure:"dbname"`
 	SSLMode  string `mapstructure:"sslmode"`
 }
 
@@ -48,6 +49,11 @@ type KafkaConfig struct {
 }
 
 type UserServiceConfig struct {
+	Address string `mapstructure:"address"`
+}
+
+type FeedServiceConfig struct {
+	Port    int    `mapstructure:"port"`
 	Address string `mapstructure:"address"`
 }
 
@@ -109,10 +115,10 @@ func setDefaults(v *viper.Viper) {
 
 	// Database defaults
 	v.SetDefault("database.host", "127.0.0.1")
-	v.SetDefault("database.port", "15432")
+	v.SetDefault("database.port", 15432)
 	v.SetDefault("database.user", "postgres")
 	v.SetDefault("database.password", "password")
-	v.SetDefault("database.database", "phoenix_rss")
+	v.SetDefault("database.dbname", "phoenix_rss")
 	v.SetDefault("database.sslmode", "disable")
 
 	// Redis defaults
@@ -128,6 +134,10 @@ func setDefaults(v *viper.Viper) {
 
 	// User Service defaults
 	v.SetDefault("user_service.address", "127.0.0.1:50051")
+
+	// Feed Service defaults
+	v.SetDefault("feed_service.port", 50053)
+	v.SetDefault("feed_service.address", "127.0.0.1:50053")
 }
 
 // validate performs basic validation on the loaded configuration
@@ -140,7 +150,7 @@ func (c *Config) validate() error {
 		return fmt.Errorf("database host cannot be empty")
 	}
 
-	if c.Database.Database == "" {
+	if c.Database.DBName == "" {
 		return fmt.Errorf("database name cannot be empty")
 	}
 
@@ -164,6 +174,14 @@ func (c *Config) validate() error {
 
 	if c.UserService.Address == "" {
 		return fmt.Errorf("user service address cannot be empty")
+	}
+
+	if c.FeedService.Port <= 0 || c.FeedService.Port > 65535 {
+		return fmt.Errorf("invalid feed service port: %d", c.FeedService.Port)
+	}
+
+	if c.FeedService.Address == "" {
+		return fmt.Errorf("feed service address cannot be empty")
 	}
 
 	// Warn about default JWT secret in a production environment
