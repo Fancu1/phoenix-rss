@@ -23,3 +23,12 @@ kafka:
 
 user_service:
   address: "127.0.0.1:50051"
+
+feed_service:
+  address: "127.0.0.1:50053"
+
+scheduler_service:
+  schedule: "@every 30m"
+  batch_size: 20
+  batch_delay: "5s"
+  max_concurrent: 5

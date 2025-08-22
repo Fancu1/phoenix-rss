@@ -38,5 +38,23 @@ services:
       - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
       - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
 
+  scheduler-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: scheduler-service
+    container_name: phoenix_scheduler
+    depends_on:
+      - kafka
+      - feed-service
+    environment:
+      - PHOENIX_RSS_KAFKA_BROKERS=kafka:9092
+      - PHOENIX_RSS_FEED_SERVICE_ADDRESS=feed-service:50053
+      - PHOENIX_RSS_SCHEDULER_SERVICE_SCHEDULE=@every 30m
+      - PHOENIX_RSS_SCHEDULER_SERVICE_BATCH_SIZE=20
+      - PHOENIX_RSS_SCHEDULER_SERVICE_BATCH_DELAY=5s
+      - PHOENIX_RSS_SCHEDULER_SERVICE_MAX_CONCURRENT=5
+    restart: unless-stopped
+
 volumes:
   postgresql_data:

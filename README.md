@@ -27,12 +27,15 @@ The project follows the standard Go project layout to ensure a clean separation 
 ```
 .
 ├── cmd/                  # Application entry points for each service
-│   ├── server/           # API Gateway main
+│   ├── api-service/      # API Gateway main
 │   ├── user-service/     # User Service main
-│   └── feed-service/     # Feed Service main
+│   ├── feed-service/     # Feed Service main
+│   └── scheduler-service/ # Scheduler Service main
 ├── internal/             # Private application and library code, isolated per service
+│   ├── api-service/      # API Gateway private logic (gRPC clients, HTTP handlers)
 │   ├── feed-service/     # Feed service domain logic, handlers, and repository
-│   └── user-service/     # User service domain logic, handlers, and repository
+│   ├── user-service/     # User service domain logic, handlers, and repository
+│   └── scheduler-service/ # Scheduler service logic and gRPC clients
 ├── pkg/                  # Shared libraries intended for use across services
 │   ├── logger/           # Centralized logging utility
 │   └── ierr/             # Standardized error handling package
@@ -72,15 +75,9 @@ go run ./cmd/user-service/main.go
 # Start Feed Service (gRPC)
 go run ./cmd/feed-service/main.go
 
+# Start Scheduler Service (Background)
+go run ./cmd/scheduler-service/main.go
+
 # Start the API Gateway (HTTP)
-go run ./cmd/server/main.go
+go run ./cmd/api-service/main.go
 ```
-
-## Roadmap
-
-This project is under active development. Our future plans include:
-
--   **AI Service**: A dedicated service for processing and enriching articles.
--   **Scheduler Service**: A cron-based service for triggering periodic feed fetches.
--   **Monitoring**: Full integration with Prometheus and Grafana.
--   **Deployment**: Kubernetes manifests for production-grade deployment.

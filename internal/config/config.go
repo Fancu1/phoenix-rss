@@ -9,13 +9,14 @@ import (
 
 // Config is the main config for the application
 type Config struct {
-	Server      ServerConfig      `mapstructure:"server"`
-	Database    DatabaseConfig    `mapstructure:"database"`
-	Redis       RedisConfig       `mapstructure:"redis"`
-	Auth        AuthConfig        `mapstructure:"auth"`
-	Kafka       KafkaConfig       `mapstructure:"kafka"`
-	UserService UserServiceConfig `mapstructure:"user_service"`
-	FeedService FeedServiceConfig `mapstructure:"feed_service"`
+	Server           ServerConfig           `mapstructure:"server"`
+	Database         DatabaseConfig         `mapstructure:"database"`
+	Redis            RedisConfig            `mapstructure:"redis"`
+	Auth             AuthConfig             `mapstructure:"auth"`
+	Kafka            KafkaConfig            `mapstructure:"kafka"`
+	UserService      UserServiceConfig      `mapstructure:"user_service"`
+	FeedService      FeedServiceConfig      `mapstructure:"feed_service"`
+	SchedulerService SchedulerServiceConfig `mapstructure:"scheduler_service"`
 }
 
 // ServerConfig is the config for the server
@@ -55,6 +56,13 @@ type UserServiceConfig struct {
 type FeedServiceConfig struct {
 	Port    int    `mapstructure:"port"`
 	Address string `mapstructure:"address"`
+}
+
+type SchedulerServiceConfig struct {
+	Schedule      string `mapstructure:"schedule"`
+	BatchSize     int    `mapstructure:"batch_size"`
+	BatchDelay    string `mapstructure:"batch_delay"`
+	MaxConcurrent int    `mapstructure:"max_concurrent"`
 }
 
 // LoadConfig loads the configuration from file and environment variables
@@ -138,6 +146,12 @@ func setDefaults(v *viper.Viper) {
 	// Feed Service defaults
 	v.SetDefault("feed_service.port", 50053)
 	v.SetDefault("feed_service.address", "127.0.0.1:50053")
+
+	// Scheduler Service defaults
+	v.SetDefault("scheduler_service.schedule", "@every 30m")
+	v.SetDefault("scheduler_service.batch_size", 20)
+	v.SetDefault("scheduler_service.batch_delay", "5s")
+	v.SetDefault("scheduler_service.max_concurrent", 5)
 }
 
 // validate performs basic validation on the loaded configuration
@@ -182,6 +196,22 @@ func (c *Config) validate() error {
 
 	if c.FeedService.Address == "" {
 		return fmt.Errorf("feed service address cannot be empty")
+	}
+
+	if c.SchedulerService.Schedule == "" {
+		return fmt.Errorf("scheduler service schedule cannot be empty")
+	}
+
+	if c.SchedulerService.BatchSize <= 0 {
+		return fmt.Errorf("scheduler service batch size must be positive")
+	}
+
+	if c.SchedulerService.MaxConcurrent <= 0 {
+		return fmt.Errorf("scheduler service max concurrent must be positive")
+	}
+
+	if c.SchedulerService.BatchDelay == "" {
+		return fmt.Errorf("scheduler service batch delay cannot be empty")
 	}
 
 	// Warn about default JWT secret in a production environment
