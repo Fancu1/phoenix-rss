@@ -20,12 +20,12 @@ import (
 	feedModels "github.com/Fancu1/phoenix-rss/internal/feed-service/models"
 	feedRepo "github.com/Fancu1/phoenix-rss/internal/feed-service/repository"
 	feedWorker "github.com/Fancu1/phoenix-rss/internal/feed-service/worker"
-	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
 	userCore "github.com/Fancu1/phoenix-rss/internal/user-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/handler"
 	userModels "github.com/Fancu1/phoenix-rss/internal/user-service/models"
 	userRepo "github.com/Fancu1/phoenix-rss/internal/user-service/repository"
+	"github.com/Fancu1/phoenix-rss/pkg/logger"
 	feedpb "github.com/Fancu1/phoenix-rss/protos/gen/go/feed"
 	userpb "github.com/Fancu1/phoenix-rss/protos/gen/go/user"
 )

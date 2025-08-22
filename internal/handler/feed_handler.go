@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/Fancu1/phoenix-rss/internal/core"
-	"github.com/Fancu1/phoenix-rss/internal/ierr"
-	"github.com/Fancu1/phoenix-rss/internal/logger"
+	"github.com/Fancu1/phoenix-rss/pkg/ierr"
+	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
 type FeedHandler struct {

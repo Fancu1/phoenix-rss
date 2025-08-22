@@ -7,9 +7,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/Fancu1/phoenix-rss/internal/ierr"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/models"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/repository"
+	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 )
 
 type UserServiceInterface interface {

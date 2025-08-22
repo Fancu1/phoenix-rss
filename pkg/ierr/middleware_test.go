@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Fancu1/phoenix-rss/internal/logger"
+	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
 func setupTestGin() *gin.Engine {

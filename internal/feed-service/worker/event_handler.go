@@ -8,7 +8,7 @@ import (
 
 	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/core"
-	"github.com/Fancu1/phoenix-rss/internal/logger"
+	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
 // EventHandler consume events and trigger article fetching

@@ -10,8 +10,8 @@ import (
 
 	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/core"
-	"github.com/Fancu1/phoenix-rss/internal/ierr"
-	"github.com/Fancu1/phoenix-rss/internal/logger"
+	"github.com/Fancu1/phoenix-rss/pkg/ierr"
+	"github.com/Fancu1/phoenix-rss/pkg/logger"
 	feedpb "github.com/Fancu1/phoenix-rss/protos/gen/go/feed"
 )
 

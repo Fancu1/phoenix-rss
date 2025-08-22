@@ -9,11 +9,11 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
-	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/repository"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/handler"
 	userRepo "github.com/Fancu1/phoenix-rss/internal/user-service/repository"
+	"github.com/Fancu1/phoenix-rss/pkg/logger"
 	userpb "github.com/Fancu1/phoenix-rss/protos/gen/go/user"
 )
 

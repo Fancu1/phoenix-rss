@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/Fancu1/phoenix-rss/internal/ierr"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/core"
+	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 	userpb "github.com/Fancu1/phoenix-rss/protos/gen/go/user"
 )
 

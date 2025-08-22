@@ -10,8 +10,8 @@ import (
 
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/models"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/repository"
-	"github.com/Fancu1/phoenix-rss/internal/ierr"
-	"github.com/Fancu1/phoenix-rss/internal/logger"
+	"github.com/Fancu1/phoenix-rss/pkg/ierr"
+	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
 type FeedServiceInterface interface {

@@ -5,16 +5,14 @@ import (
 	"net/http"
 )
 
-// AppError represents a structured application error with HTTP status code,
-// internal error code, and user-friendly message
+// AppError represent a structured application error
 type AppError struct {
 	Code       int    // Internal error code for API consumers
-	Message    string // User-friendly error message
+	Message    string // User-friendly error message for API consumers
 	HTTPStatus int    // HTTP status code to return
-	cause      error  // Internal cause (for logging, not exposed to user)
+	cause      error  // Internal cause (for logging, not exposed to API consumers)
 }
 
-// Error implements the error interface
 func (e *AppError) Error() string {
 	if e.cause != nil {
 		return fmt.Sprintf("%s: %v", e.Message, e.cause)
@@ -22,12 +20,10 @@ func (e *AppError) Error() string {
 	return e.Message
 }
 
-// Unwrap implements the unwrapper interface for Go 1.13+ error handling
 func (e *AppError) Unwrap() error {
 	return e.cause
 }
 
-// WithCause returns a new AppError with the given cause wrapped
 func (e *AppError) WithCause(cause error) *AppError {
 	return &AppError{
 		Code:       e.Code,
@@ -71,7 +67,7 @@ var (
 	ErrTaskQueueError = &AppError{Code: 9003, Message: "Task queue error", HTTPStatus: http.StatusInternalServerError}
 )
 
-// NewAppError creates a new AppError with the given parameters
+// NewAppError create a new AppError with the given parameters
 func NewAppError(code int, message string, httpStatus int) *AppError {
 	return &AppError{
 		Code:       code,
@@ -80,7 +76,7 @@ func NewAppError(code int, message string, httpStatus int) *AppError {
 	}
 }
 
-// NewValidationError creates a validation error with specific message
+// NewValidationError create a validation error with specific message
 func NewValidationError(message string) *AppError {
 	return &AppError{
 		Code:       1301,

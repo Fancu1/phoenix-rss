@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/Fancu1/phoenix-rss/internal/core"
-	"github.com/Fancu1/phoenix-rss/internal/ierr"
+	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 )
 
 type UserHandler struct {

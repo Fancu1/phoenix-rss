@@ -19,7 +19,7 @@ import (
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/handler"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/repository"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/worker"
-	"github.com/Fancu1/phoenix-rss/internal/logger"
+	"github.com/Fancu1/phoenix-rss/pkg/logger"
 	feedpb "github.com/Fancu1/phoenix-rss/protos/gen/go/feed"
 )
 

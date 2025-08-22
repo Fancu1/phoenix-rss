@@ -7,8 +7,8 @@ import (
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/core"
-	"github.com/Fancu1/phoenix-rss/internal/logger"
 	"github.com/Fancu1/phoenix-rss/internal/server"
+	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
 func main() {

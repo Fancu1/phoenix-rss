@@ -18,28 +18,27 @@ const (
 	UserIDKey ContextKey = "user_id"
 )
 
-// WithRequestID adds a request ID to the context
+// WithRequestID add a request ID to the context
 func WithRequestID(ctx context.Context, requestID string) context.Context {
 	return context.WithValue(ctx, RequestIDKey, requestID)
 }
 
-// WithTaskID adds a task ID to the context
+// WithTaskID add a task ID to the context
 func WithTaskID(ctx context.Context, taskID string) context.Context {
 	return context.WithValue(ctx, TaskIDKey, taskID)
 }
 
-// WithUserID adds a user ID to the context for audit logging
+// WithUserID add a user ID to the context for audit logging
 func WithUserID(ctx context.Context, userID uint) context.Context {
 	return context.WithValue(ctx, UserIDKey, userID)
 }
 
-// WithValue adds an arbitrary key-value pair to the context
-// This is useful for adding additional context information for logging
+// WithValue add an arbitrary key-value pair to the context
 func WithValue(ctx context.Context, key string, value interface{}) context.Context {
 	return context.WithValue(ctx, ContextKey(key), value)
 }
 
-// GetRequestID extracts the request ID from context
+// GetRequestID extract the request ID from context
 func GetRequestID(ctx context.Context) (string, bool) {
 	if ctx == nil {
 		return "", false
@@ -48,7 +47,7 @@ func GetRequestID(ctx context.Context) (string, bool) {
 	return requestID, ok
 }
 
-// GetTaskID extracts the task ID from context
+// GetTaskID extract the task ID from context
 func GetTaskID(ctx context.Context) (string, bool) {
 	if ctx == nil {
 		return "", false
@@ -57,7 +56,7 @@ func GetTaskID(ctx context.Context) (string, bool) {
 	return taskID, ok
 }
 
-// GetUserID extracts the user ID from context
+// GetUserID extract the user ID from context
 func GetUserID(ctx context.Context) (uint, bool) {
 	if ctx == nil {
 		return 0, false
@@ -66,7 +65,7 @@ func GetUserID(ctx context.Context) (uint, bool) {
 	return userID, ok
 }
 
-// GetValue extracts an arbitrary value from context
+// GetValue extract an arbitrary value from context
 func GetValue(ctx context.Context, key string) (interface{}, bool) {
 	if ctx == nil {
 		return nil, false

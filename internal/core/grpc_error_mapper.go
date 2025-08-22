@@ -6,7 +6,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/Fancu1/phoenix-rss/internal/ierr"
+	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 )
 
 // MapGRPCError converts gRPC status errors back to internal application errors

@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Fancu1/phoenix-rss/internal/core"
-	"github.com/Fancu1/phoenix-rss/internal/ierr"
-	"github.com/Fancu1/phoenix-rss/internal/logger"
+	"github.com/Fancu1/phoenix-rss/pkg/ierr"
+	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
 // RequestIDMiddleware adds a unique request ID to each HTTP request
