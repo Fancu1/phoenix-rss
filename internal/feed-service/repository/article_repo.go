@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -63,4 +64,14 @@ func (r *ArticleRepository) ExistsByURL(ctx context.Context, url string) (bool, 
 	var count int64
 	result := r.db.WithContext(ctx).Model(&models.Article{}).Where("url = ?", url).Count(&count)
 	return count > 0, result.Error
+}
+
+func (r *ArticleRepository) UpdateWithAIData(ctx context.Context, articleID uint, summary string, processingModel string) error {
+	now := time.Now()
+	result := r.db.WithContext(ctx).Model(&models.Article{}).Where("id = ?", articleID).Updates(map[string]interface{}{
+		"summary":          summary,
+		"processing_model": processingModel,
+		"processed_at":     now,
+	})
+	return result.Error
 }

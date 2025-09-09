@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"net"
@@ -25,9 +26,22 @@ import (
 	userModels "github.com/Fancu1/phoenix-rss/internal/user-service/models"
 	userRepo "github.com/Fancu1/phoenix-rss/internal/user-service/repository"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
+	article_eventspb "github.com/Fancu1/phoenix-rss/proto/gen/article_events"
 	feedpb "github.com/Fancu1/phoenix-rss/protos/gen/go/feed"
 	userpb "github.com/Fancu1/phoenix-rss/protos/gen/go/user"
 )
+
+// MockArticleEventProducer is a simple mock implementation for testing
+type MockArticleEventProducer struct{}
+
+func (m *MockArticleEventProducer) PublishArticlePersisted(ctx context.Context, event *article_eventspb.ArticlePersistedEvent) error {
+	// In tests, we just ignore the events
+	return nil
+}
+
+func (m *MockArticleEventProducer) Close() error {
+	return nil
+}
 
 var app *TestApp
 
@@ -142,15 +156,18 @@ func startTestFeedService(db *gorm.DB, address string) func() {
 	feedRepository := feedRepo.NewFeedRepository(feedDB)
 	articleRepository := feedRepo.NewArticleRepository(feedDB)
 
+	// Create a mock article event producer for testing
+	mockEventProducer := &MockArticleEventProducer{}
+
 	// Initialize services
 	feedService := feedCore.NewFeedService(feedRepository, logger.New(slog.LevelDebug))
-	articleService := feedCore.NewArticleService(feedRepository, articleRepository, logger.New(slog.LevelDebug))
+	articleService := feedCore.NewArticleService(feedRepository, articleRepository, mockEventProducer, logger.New(slog.LevelDebug))
 
 	// Create event handler for processing
-	eventHandler := feedWorker.NewEventHandler(logger.New(slog.LevelDebug), articleService)
+	feedFetcher := feedWorker.NewFeedFetcher(logger.New(slog.LevelDebug), articleService)
 
 	// In tests, use in-memory bus to avoid Kafka dependency
-	memBus := events.NewMemoryBus(logger.New(slog.LevelDebug), eventHandler.HandleFeedFetch)
+	memBus := events.NewMemoryBus(logger.New(slog.LevelDebug), feedFetcher.HandleFeedFetch)
 
 	// Create gRPC handler with memory bus as producer
 	grpcHandler := feedHandler.NewFeedServiceHandler(
@@ -160,14 +177,11 @@ func startTestFeedService(db *gorm.DB, address string) func() {
 		memBus,
 	)
 
-	// Create worker and register the memory bus as consumer
-	appWorker := feedWorker.NewWorker(logger.New(slog.LevelDebug))
-	appWorker.RegisterConsumer(memBus)
-
-	// Start worker in background
+	// Start memory bus in background for test events
 	go func() {
-		if err := appWorker.Start(); err != nil {
-			log.Printf("Feed service worker error: %v", err)
+		ctx := context.Background()
+		if err := memBus.Start(ctx); err != nil {
+			log.Printf("Memory bus error: %v", err)
 		}
 	}()
 
@@ -190,7 +204,6 @@ func startTestFeedService(db *gorm.DB, address string) func() {
 
 	// Return stop function
 	return func() {
-		appWorker.Stop()
 		grpcServer.GracefulStop()
 	}
 }

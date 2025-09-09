@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package article_events.v1;
+
+option go_package = "./proto/gen/article_events;article_eventspb";
+
+// ArticlePersistedEvent is published when a new article is saved to the database
+message ArticlePersistedEvent {
+  uint64 article_id = 1;
+  uint64 feed_id = 2;
+  string title = 3;
+  string content = 4;
+  string url = 5;
+  string description = 6;
+  int64 published_at = 7; // Unix timestamp
+}
+
+// ArticleProcessedEvent is published after AI processing is complete
+message ArticleProcessedEvent {
+  uint64 article_id = 1;
+  string summary = 2;
+  string processing_model = 3; // Which model was used for processing
+}

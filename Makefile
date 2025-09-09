@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: migrate-up migrate-down migrate-create build-api-service build-user-service build-feed-service build-scheduler-service build-all run-api-service run-user-service run-feed-service run-scheduler-service
+.PHONY: migrate-up migrate-down migrate-create build-api-service build-user-service build-feed-service build-scheduler-service build-ai-service build-all run-api-service run-user-service run-feed-service run-scheduler-service run-ai-service test infra-up infra-down
 
 migrate-up:
 	go run ./cmd/migrator up
@@ -31,7 +31,10 @@ build-feed-service:
 build-scheduler-service:
 	go build -o bin/scheduler-service ./cmd/scheduler-service
 
-build-all: build-api-service build-user-service build-feed-service build-scheduler-service
+build-ai-service:
+	go build -o bin/ai-service ./cmd/ai-service
+
+build-all: build-api-service build-user-service build-feed-service build-scheduler-service build-ai-service
 
 # Run targets
 run-api-service:
@@ -45,4 +48,17 @@ run-feed-service:
 
 run-scheduler-service:
 	go run ./cmd/scheduler-service
+
+run-ai-service:
+	go run ./cmd/ai-service
+
+test:
+	go test ./... -coverprofile=coverage.out -covermode=atomic
+	go tool cover -func=coverage.out | tail -n 1
+
+infra-up:
+	docker compose up -d postgres redis kafka
+
+infra-down:
+	docker compose down
 

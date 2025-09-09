@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Build artifacts
+bin/
+main
+ai-service
+feed-service
+scheduler-service
+
+# Development files
+.vscode/
+.idea/
+*.log
+
+# Test files
+*_test.go
+
+# Database data
+postgresql_data/
+
+# Vendor (will be downloaded in container)
+vendor/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Profile data
+*.profraw
+default.profraw
+
+# Editor files
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/

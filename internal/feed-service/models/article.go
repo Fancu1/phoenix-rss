@@ -14,4 +14,9 @@ type Article struct {
 	Read        bool      `json:"read" gorm:"default:false"`
 	Starred     bool      `json:"starred" gorm:"default:false"`
 	PublishedAt time.Time `json:"published_at"`
+
+	// AI processing fields
+	Summary         *string    `json:"summary,omitempty"`
+	ProcessingModel *string    `json:"processing_model,omitempty"`
+	ProcessedAt     *time.Time `json:"processed_at,omitempty"`
 }
