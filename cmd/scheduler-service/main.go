@@ -45,8 +45,8 @@ func main() {
 	// Create Kafka producer
 	producer := events.NewKafkaProducer(log, events.KafkaConfig{
 		Brokers: cfg.Kafka.Brokers,
-		Topic:   cfg.Kafka.Topic,
-		GroupID: cfg.Kafka.GroupID,
+		Topic:   cfg.Kafka.FeedFetch.Topic,
+		GroupID: cfg.Kafka.FeedFetch.FeedServiceGroupID, // Use same topic and group for scheduler
 	})
 	defer producer.Close()
 

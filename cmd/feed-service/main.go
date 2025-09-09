@@ -37,25 +37,37 @@ func main() {
 	feedRepo := repository.NewFeedRepository(db)
 	articleRepo := repository.NewArticleRepository(db)
 
+	aiEventProducer := events.NewKafkaArticleEventProducer(log, cfg.Kafka.Brokers, cfg.Kafka.AIProcessing.ArticlesNewTopic)
+	defer aiEventProducer.Close()
+
+	aiEventConsumer := events.NewKafkaArticleEventConsumer(
+		log,
+		cfg.Kafka.Brokers,
+		cfg.Kafka.AIProcessing.FeedServiceAIGroupID,
+		cfg.Kafka.AIProcessing.ArticlesProcessedTopic,
+	)
+
 	feedService := core.NewFeedService(feedRepo, log)
-	articleService := core.NewArticleService(feedRepo, articleRepo, log)
+	articleService := core.NewArticleService(feedRepo, articleRepo, aiEventProducer, log)
 
-	producer := events.NewKafkaProducer(log, events.KafkaConfig{
+	feedFetchProducer := events.NewKafkaProducer(log, events.KafkaConfig{
 		Brokers: cfg.Kafka.Brokers,
-		Topic:   cfg.Kafka.Topic,
-		GroupID: cfg.Kafka.GroupID,
+		Topic:   cfg.Kafka.FeedFetch.Topic,
+		GroupID: cfg.Kafka.FeedFetch.FeedServiceGroupID,
 	})
-	defer producer.Close()
+	defer feedFetchProducer.Close()
 
-	eventHandler := worker.NewEventHandler(log, articleService)
+	feedFetcher := worker.NewFeedFetcher(log, articleService)
 
-	consumer := events.NewKafkaConsumer(log, events.KafkaConfig{
+	feedFetchConsumer := events.NewKafkaConsumer(log, events.KafkaConfig{
 		Brokers: cfg.Kafka.Brokers,
-		Topic:   cfg.Kafka.Topic,
-		GroupID: "feed-service-" + cfg.Kafka.GroupID, // different group ID for feed service
-	}, eventHandler.HandleFeedFetch)
+		Topic:   cfg.Kafka.FeedFetch.Topic,
+		GroupID: cfg.Kafka.FeedFetch.FeedServiceGroupID,
+	}, feedFetcher.HandleFeedFetch)
 
-	grpcHandler := handler.NewFeedServiceHandler(log, feedService, articleService, producer)
+	aiResultHandler := worker.NewAIResultHandler(log, articleService, aiEventConsumer)
+
+	grpcHandler := handler.NewFeedServiceHandler(log, feedService, articleService, feedFetchProducer)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -71,7 +83,12 @@ func main() {
 
 	g.Go(func() error {
 		log.Info("starting Kafka consumer")
-		return consumer.Start(ctx)
+		return feedFetchConsumer.Start(ctx)
+	})
+
+	g.Go(func() error {
+		log.Info("starting AI event handler")
+		return aiResultHandler.Start(ctx)
 	})
 
 	g.Go(func() error {
