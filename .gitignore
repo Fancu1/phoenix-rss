@@ -42,3 +42,21 @@ repomix-output.md
 vendor/
 
 .env
+
+*.profraw
+
+# frontend
+/web/node_modules
+/web/build
+/web/.svelte-kit
+/web/.env
+/web/.env.*
+!/web/.env.example
+
+# service
+/ai-service
+/api-service
+/feed-service
+/scheduler-service
+/user-service
+/main

@@ -1,17 +1,22 @@
 package server
 
 import (
+	"github.com/gin-contrib/gzip"
+
 	"github.com/Fancu1/phoenix-rss/internal/api-service/handler"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 )
 
 func (s *Server) setupRoutes() {
-	// Apply RequestID middleware to all routes
+	// Apply global middleware
 	s.engine.Use(handler.RequestIDMiddleware())
-
-	// Apply error handling middleware to all routes
 	s.engine.Use(ierr.ErrorHandlerMiddleware())
+	s.engine.Use(gzip.Gzip(gzip.DefaultCompression))
 
+	// Register frontend routes
+	s.frontendHandler.RegisterRoutes(s.engine)
+
+	// Register API v1 routes
 	apiV1 := s.engine.Group("/api/v1")
 	{
 		// Public routes (no authentication required)

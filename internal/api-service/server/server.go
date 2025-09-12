@@ -1,6 +1,7 @@
 package server
 
 import (
+	"embed"
 	"fmt"
 	"log/slog"
 
@@ -12,33 +13,39 @@ import (
 )
 
 type Server struct {
-	config         *config.Config
-	engine         *gin.Engine
-	logger         *slog.Logger
-	feedHandler    *handler.FeedHandler
-	articleHandler *handler.ArticleHandler
-	userHandler    *handler.UserHandler
-	authMiddleware *handler.AuthMiddleware
+	config          *config.Config
+	engine          *gin.Engine
+	logger          *slog.Logger
+	feedHandler     *handler.FeedHandler
+	articleHandler  *handler.ArticleHandler
+	userHandler     *handler.UserHandler
+	authMiddleware  *handler.AuthMiddleware
+	frontendHandler *handler.StaticFrontendHandler
 }
 
-func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceInterface, articleService core.ArticleServiceInterface, userService core.UserServiceInterface) *Server {
+func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceInterface, articleService core.ArticleServiceInterface, userService core.UserServiceInterface, staticFS embed.FS) (*Server, error) {
 	feedHandler := handler.NewFeedHandler(feedService)
 	articleHandler := handler.NewArticleHandler(logger, articleService)
 	userHandler := handler.NewUserHandler(userService)
 	authMiddleware := handler.NewAuthMiddleware(userService)
+	frontendHandler, err := handler.NewStaticFrontendHandler(staticFS)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create frontend handler: %w", err)
+	}
 
 	s := &Server{
-		config:         cfg,
-		engine:         gin.Default(),
-		feedHandler:    feedHandler,
-		articleHandler: articleHandler,
-		userHandler:    userHandler,
-		authMiddleware: authMiddleware,
+		config:          cfg,
+		engine:          gin.Default(),
+		feedHandler:     feedHandler,
+		articleHandler:  articleHandler,
+		userHandler:     userHandler,
+		authMiddleware:  authMiddleware,
+		frontendHandler: frontendHandler,
 	}
 
 	s.setupRoutes()
 
-	return s
+	return s, nil
 }
 
 func (s *Server) Start() error {
