@@ -1,5 +1,13 @@
-# Build stage
-FROM golang:1.23-alpine AS builder
+# Stage 1: Frontend Builder
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/web
+COPY web/package*.json ./
+RUN npm install
+COPY web/ .
+RUN npm run build
+
+# Stage 2: Backend Builder
+FROM golang:1.23-alpine AS backend-builder
 
 # Install git (might be needed for some Go modules)
 RUN apk add --no-cache git
@@ -15,6 +23,12 @@ RUN go mod download
 
 # Copy source code
 COPY . .
+
+# Copy built frontend assets from the frontend-builder stage
+COPY --from=frontend-builder /app/web/build ./web/build
+
+# Copy frontend build to the location expected by embed
+RUN cp -r web/build cmd/api-service/dist
 
 # Build all services
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bin/scheduler-service ./cmd/scheduler-service
@@ -36,10 +50,10 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/bin/scheduler-service /app/scheduler-service
+COPY --from=backend-builder /app/bin/scheduler-service /app/scheduler-service
 
 # Copy config files
-COPY --from=builder /app/configs /app/configs
+COPY --from=backend-builder /app/configs /app/configs
 
 # Change ownership to appuser
 RUN chown -R appuser:appgroup /app
@@ -66,10 +80,10 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/bin/ai-service /app/ai-service
+COPY --from=backend-builder /app/bin/ai-service /app/ai-service
 
 # Copy config files
-COPY --from=builder /app/configs /app/configs
+COPY --from=backend-builder /app/configs /app/configs
 
 # Change ownership to appuser
 RUN chown -R appuser:appgroup /app
@@ -94,8 +108,8 @@ RUN addgroup -g 1001 -S appgroup && \
 
 WORKDIR /app
 
-COPY --from=builder /app/bin/api-service /app/api-service
-COPY --from=builder /app/configs /app/configs
+COPY --from=backend-builder /app/bin/api-service /app/api-service
+COPY --from=backend-builder /app/configs /app/configs
 
 RUN chown -R appuser:appgroup /app
 
@@ -115,8 +129,8 @@ RUN addgroup -g 1001 -S appgroup && \
 
 WORKDIR /app
 
-COPY --from=builder /app/bin/feed-service /app/feed-service
-COPY --from=builder /app/configs /app/configs
+COPY --from=backend-builder /app/bin/feed-service /app/feed-service
+COPY --from=backend-builder /app/configs /app/configs
 
 RUN chown -R appuser:appgroup /app
 
@@ -136,8 +150,8 @@ RUN addgroup -g 1001 -S appgroup && \
 
 WORKDIR /app
 
-COPY --from=builder /app/bin/user-service /app/user-service
-COPY --from=builder /app/configs /app/configs
+COPY --from=backend-builder /app/bin/user-service /app/user-service
+COPY --from=backend-builder /app/configs /app/configs
 
 RUN chown -R appuser:appgroup /app
 

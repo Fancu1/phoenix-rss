@@ -10,12 +10,22 @@ services:
       - "127.0.0.1:15432:5432"
     volumes:
       - ./postgresql_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d phoenix_rss"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
     container_name: phoenix_redis
     ports:
       - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka:
     image: bitnami/kafka:3.7
@@ -36,6 +46,21 @@ services:
       - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
       - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
 
+  migrator:
+    image: golang:1.23-alpine
+    container_name: phoenix_migrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    working_dir: /app
+    entrypoint: ["go", "run", "./cmd/migrator"]
+    profiles:
+      - tools
+
   api-service:
     build:
       context: .
@@ -43,10 +68,14 @@ services:
       target: api-service
     container_name: phoenix_api_service
     depends_on:
-      - postgres
-      - redis
-      - user-service
-      - feed-service
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      feed-service:
+        condition: service_started
     ports:
       - "127.0.0.1:${SERVER_PORT}:${SERVER_PORT}"
     env_file:
@@ -60,7 +89,8 @@ services:
       target: user-service
     container_name: phoenix_user_service
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "127.0.0.1:${USER_SERVICE_PORT}:${USER_SERVICE_PORT}"
     env_file:
@@ -74,8 +104,10 @@ services:
       target: feed-service
     container_name: phoenix_feed_service
     depends_on:
-      - postgres
-      - kafka
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
     ports:
       - "127.0.0.1:${FEED_SERVICE_PORT}:${FEED_SERVICE_PORT}"
     env_file:
@@ -89,8 +121,10 @@ services:
       target: scheduler-service
     container_name: phoenix_scheduler
     depends_on:
-      - kafka
-      - feed-service
+      kafka:
+        condition: service_started
+      feed-service:
+        condition: service_started
     env_file:
       - .env
     restart: unless-stopped
@@ -102,7 +136,8 @@ services:
       target: ai-service
     container_name: phoenix_ai_service
     depends_on:
-      - kafka
+      kafka:
+        condition: service_started
     env_file:
       - .env
     restart: unless-stopped

@@ -19,8 +19,17 @@ migrate-create:
 	 echo "created $$up and $$down"
 
 # Build targets
-build-api-service:
+build-web:
+	npm --prefix web install
+	npm --prefix web run build
+
+build-api-service: build-web
+	@echo "--> Copying frontend assets for embedding..."
+	@cp -r web/build cmd/api-service/dist
+	@echo "--> Building api-service binary..."
 	go build -o bin/api-service ./cmd/api-service
+	@echo "--> Cleaning up temporary frontend assets..."
+	@rm -rf cmd/api-service/dist
 
 build-user-service:
 	go build -o bin/user-service ./cmd/user-service
