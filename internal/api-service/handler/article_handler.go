@@ -87,3 +87,34 @@ func (h *ArticleHandler) ListArticles(c *gin.Context) {
 	log.Info("successfully retrieved articles", "user_id", userID, "feed_id", feedID, "article_count", len(articles))
 	c.JSON(http.StatusOK, articles)
 }
+
+func (h *ArticleHandler) GetArticle(c *gin.Context) {
+	log := logger.FromContext(c.Request.Context())
+
+	userID, exists := GetUserIDFromContext(c)
+	if !exists {
+		log.Error("user not authenticated in protected route")
+		c.Error(ierr.ErrUnauthorized)
+		return
+	}
+
+	articleIDStr := c.Param("article_id")
+	articleID, err := strconv.ParseUint(articleIDStr, 10, 32)
+	if err != nil {
+		log.Warn("invalid article ID parameter", "article_id_str", articleIDStr, "error", err.Error())
+		c.Error(ierr.NewValidationError("Invalid article ID"))
+		return
+	}
+
+	log.Info("user requesting article", "user_id", userID, "article_id", articleID)
+
+	article, err := h.service.GetArticleByID(c.Request.Context(), userID, uint(articleID))
+	if err != nil {
+		log.Error("failed to get article", "user_id", userID, "article_id", articleID, "error", err.Error())
+		c.Error(err)
+		return
+	}
+
+	log.Info("successfully retrieved article", "user_id", userID, "article_id", articleID)
+	c.JSON(http.StatusOK, article)
+}

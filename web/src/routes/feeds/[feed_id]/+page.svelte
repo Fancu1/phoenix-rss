@@ -3,19 +3,25 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { authStore, feedsStore, uiStore, toast } from '$lib/stores.js';
-	import { feeds } from '$lib/api.js';
+	import { feeds, articles as articleApi } from '$lib/api.js';
 	import NavBar from '$lib/components/NavBar.svelte';
 	import SideBar from '$lib/components/SideBar.svelte';
 	import ArticleCard from '$lib/components/ArticleCard.svelte';
 	import AddSubscriptionModal from '$lib/components/AddSubscriptionModal.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import ArticleReaderModal from '$lib/components/ArticleReaderModal.svelte';
 
 	let showAddModal = false;
 	let showUnsubscribeModal = false;
 	let loading = true;
-	let articles = [];
+	let feedArticles = [];
 	let currentFeed = null;
 	let fetchingArticles = false;
+	let readerOpen = false;
+	let readerLoading = false;
+	let readerError = '';
+	let readerArticle = null;
+	let readerArticleId = null;
 
 	$: feedId = parseInt($page.params.feed_id);
 
@@ -64,7 +70,7 @@
 		try {
 			fetchingArticles = true;
 			const articleList = await feeds.getArticles(feedId);
-			articles = articleList;
+			feedArticles = articleList;
 		} catch (error) {
 			console.error('Failed to load articles:', error);
 			if (error.status === 404) {
@@ -75,6 +81,53 @@
 			}
 		} finally {
 			fetchingArticles = false;
+		}
+	}
+
+	async function openArticleReader(event) {
+		const article = event.detail?.article;
+		if (!article) return;
+
+		readerArticleId = article.id;
+		readerOpen = true;
+		readerLoading = true;
+		readerError = '';
+		readerArticle = null;
+
+		try {
+			const detail = await articleApi.getById(article.id);
+			readerArticle = detail;
+		} catch (error) {
+			console.error('Failed to load article detail:', error);
+			if (error.status === 404) {
+				toast.error('Article not found');
+			} else if (error.status === 403) {
+				toast.error('You are not subscribed to this feed');
+			} else if (error.status === 401) {
+				toast.error('Please log in again');
+				readerOpen = false;
+				handleReaderClose();
+				return;
+			} else {
+				toast.error('Failed to open article');
+			}
+			readerError = error.message ?? 'Failed to load article';
+		} finally {
+			readerLoading = false;
+		}
+	}
+
+	function handleReaderClose() {
+		readerOpen = false;
+		readerLoading = false;
+		readerError = '';
+		readerArticle = null;
+		readerArticleId = null;
+	}
+
+	function handleOpenOriginal() {
+		if (readerArticle?.url) {
+			window.open(readerArticle.url, '_blank', 'noopener,noreferrer');
 		}
 	}
 
@@ -153,7 +206,7 @@
 								</p>
 								<div class="feed-meta">
 									<span class="article-count">
-										{articles.length} article{articles.length === 1 ? '' : 's'}
+									{feedArticles.length} article{feedArticles.length === 1 ? '' : 's'}
 									</span>
 									{#if currentFeed.updated_at}
 										<span class="feed-separator">•</span>
@@ -196,12 +249,12 @@
 
 						<!-- Articles List -->
 						<div class="articles-section">
-							{#if fetchingArticles && articles.length === 0}
+			{#if fetchingArticles && feedArticles.length === 0}
 								<div class="loading-container">
 									<div class="loading-spinner"></div>
 									<p>Loading articles...</p>
 								</div>
-							{:else if articles.length === 0}
+			{:else if feedArticles.length === 0}
 								<div class="empty-state">
 									<div class="empty-icon">
 										<svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -224,9 +277,9 @@
 									</button>
 								</div>
 							{:else}
-								<div class="articles-list">
-									{#each articles as article (article.id)}
-										<ArticleCard {article} />
+				<div class="articles-list">
+					{#each feedArticles as article (article.id)}
+									<ArticleCard {article} on:open={openArticleReader} />
 									{/each}
 								</div>
 							{/if}
@@ -244,6 +297,15 @@
 	</div>
 
 	<!-- Modals -->
+	<ArticleReaderModal
+		open={readerOpen}
+		article={readerArticle}
+		loading={readerLoading}
+		error={readerError}
+		on:close={handleReaderClose}
+		on:openOriginal={handleOpenOriginal}
+	/>
+
 	<AddSubscriptionModal 
 		open={showAddModal} 
 		on:close={handleModalClose}

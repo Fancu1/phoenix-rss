@@ -38,6 +38,7 @@ func (s *Server) setupRoutes() {
 
 			// Article access (user-specific)
 			protected.GET("/feeds/:feed_id/articles", s.articleHandler.ListArticles)
+			protected.GET("/articles/:article_id", s.articleHandler.GetArticle)
 		}
 	}
 }

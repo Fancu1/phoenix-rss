@@ -28,7 +28,7 @@ COPY . .
 COPY --from=frontend-builder /app/web/build ./web/build
 
 # Copy frontend build to the location expected by embed
-RUN cp -r web/build cmd/api-service/dist
+RUN rm -rf cmd/api-service/dist && mkdir -p cmd/api-service/dist && cp -a web/build/. cmd/api-service/dist/
 
 # Build all services
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bin/scheduler-service ./cmd/scheduler-service

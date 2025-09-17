@@ -108,20 +108,23 @@ func (x *Feed) GetUpdatedAt() string {
 
 // Article message represents an individual article
 type Article struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	FeedId        uint64                 `protobuf:"varint,2,opt,name=feed_id,json=feedId,proto3" json:"feed_id,omitempty"`
-	Title         string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
-	Url           string                 `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`
-	Description   string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
-	Content       string                 `protobuf:"bytes,6,opt,name=content,proto3" json:"content,omitempty"`
-	CreatedAt     string                 `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     string                 `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	Read          bool                   `protobuf:"varint,9,opt,name=read,proto3" json:"read,omitempty"`
-	Starred       bool                   `protobuf:"varint,10,opt,name=starred,proto3" json:"starred,omitempty"`
-	PublishedAt   string                 `protobuf:"bytes,11,opt,name=published_at,json=publishedAt,proto3" json:"published_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	FeedId          uint64                 `protobuf:"varint,2,opt,name=feed_id,json=feedId,proto3" json:"feed_id,omitempty"`
+	Title           string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	Url             string                 `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`
+	Description     string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
+	Content         string                 `protobuf:"bytes,6,opt,name=content,proto3" json:"content,omitempty"`
+	CreatedAt       string                 `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt       string                 `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Read            bool                   `protobuf:"varint,9,opt,name=read,proto3" json:"read,omitempty"`
+	Starred         bool                   `protobuf:"varint,10,opt,name=starred,proto3" json:"starred,omitempty"`
+	PublishedAt     string                 `protobuf:"bytes,11,opt,name=published_at,json=publishedAt,proto3" json:"published_at,omitempty"`
+	Summary         string                 `protobuf:"bytes,12,opt,name=summary,proto3" json:"summary,omitempty"`
+	ProcessingModel string                 `protobuf:"bytes,13,opt,name=processing_model,json=processingModel,proto3" json:"processing_model,omitempty"`
+	ProcessedAt     string                 `protobuf:"bytes,14,opt,name=processed_at,json=processedAt,proto3" json:"processed_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Article) Reset() {
@@ -227,6 +230,27 @@ func (x *Article) GetStarred() bool {
 func (x *Article) GetPublishedAt() string {
 	if x != nil {
 		return x.PublishedAt
+	}
+	return ""
+}
+
+func (x *Article) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *Article) GetProcessingModel() string {
+	if x != nil {
+		return x.ProcessingModel
+	}
+	return ""
+}
+
+func (x *Article) GetProcessedAt() string {
+	if x != nil {
+		return x.ProcessedAt
 	}
 	return ""
 }
@@ -619,6 +643,102 @@ func (x *ListArticlesResponse) GetArticles() []*Article {
 	return nil
 }
 
+type GetArticleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        uint64                 `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ArticleId     uint64                 `protobuf:"varint,2,opt,name=article_id,json=articleId,proto3" json:"article_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArticleRequest) Reset() {
+	*x = GetArticleRequest{}
+	mi := &file_proto_feed_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArticleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArticleRequest) ProtoMessage() {}
+
+func (x *GetArticleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_feed_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArticleRequest.ProtoReflect.Descriptor instead.
+func (*GetArticleRequest) Descriptor() ([]byte, []int) {
+	return file_proto_feed_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetArticleRequest) GetUserId() uint64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *GetArticleRequest) GetArticleId() uint64 {
+	if x != nil {
+		return x.ArticleId
+	}
+	return 0
+}
+
+type GetArticleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Article       *Article               `protobuf:"bytes,1,opt,name=article,proto3" json:"article,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArticleResponse) Reset() {
+	*x = GetArticleResponse{}
+	mi := &file_proto_feed_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArticleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArticleResponse) ProtoMessage() {}
+
+func (x *GetArticleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_feed_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArticleResponse.ProtoReflect.Descriptor instead.
+func (*GetArticleResponse) Descriptor() ([]byte, []int) {
+	return file_proto_feed_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetArticleResponse) GetArticle() *Article {
+	if x != nil {
+		return x.Article
+	}
+	return nil
+}
+
 // Trigger manual fetch requests and responses
 type TriggerFetchRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -630,7 +750,7 @@ type TriggerFetchRequest struct {
 
 func (x *TriggerFetchRequest) Reset() {
 	*x = TriggerFetchRequest{}
-	mi := &file_proto_feed_proto_msgTypes[10]
+	mi := &file_proto_feed_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -642,7 +762,7 @@ func (x *TriggerFetchRequest) String() string {
 func (*TriggerFetchRequest) ProtoMessage() {}
 
 func (x *TriggerFetchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_feed_proto_msgTypes[10]
+	mi := &file_proto_feed_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -655,7 +775,7 @@ func (x *TriggerFetchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TriggerFetchRequest.ProtoReflect.Descriptor instead.
 func (*TriggerFetchRequest) Descriptor() ([]byte, []int) {
-	return file_proto_feed_proto_rawDescGZIP(), []int{10}
+	return file_proto_feed_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *TriggerFetchRequest) GetUserId() uint64 {
@@ -682,7 +802,7 @@ type TriggerFetchResponse struct {
 
 func (x *TriggerFetchResponse) Reset() {
 	*x = TriggerFetchResponse{}
-	mi := &file_proto_feed_proto_msgTypes[11]
+	mi := &file_proto_feed_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -694,7 +814,7 @@ func (x *TriggerFetchResponse) String() string {
 func (*TriggerFetchResponse) ProtoMessage() {}
 
 func (x *TriggerFetchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_feed_proto_msgTypes[11]
+	mi := &file_proto_feed_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -707,7 +827,7 @@ func (x *TriggerFetchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TriggerFetchResponse.ProtoReflect.Descriptor instead.
 func (*TriggerFetchResponse) Descriptor() ([]byte, []int) {
-	return file_proto_feed_proto_rawDescGZIP(), []int{11}
+	return file_proto_feed_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *TriggerFetchResponse) GetSuccess() bool {
@@ -733,7 +853,7 @@ type ListAllFeedsRequest struct {
 
 func (x *ListAllFeedsRequest) Reset() {
 	*x = ListAllFeedsRequest{}
-	mi := &file_proto_feed_proto_msgTypes[12]
+	mi := &file_proto_feed_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -745,7 +865,7 @@ func (x *ListAllFeedsRequest) String() string {
 func (*ListAllFeedsRequest) ProtoMessage() {}
 
 func (x *ListAllFeedsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_feed_proto_msgTypes[12]
+	mi := &file_proto_feed_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -758,7 +878,7 @@ func (x *ListAllFeedsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAllFeedsRequest.ProtoReflect.Descriptor instead.
 func (*ListAllFeedsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_feed_proto_rawDescGZIP(), []int{12}
+	return file_proto_feed_proto_rawDescGZIP(), []int{14}
 }
 
 type ListAllFeedsResponse struct {
@@ -770,7 +890,7 @@ type ListAllFeedsResponse struct {
 
 func (x *ListAllFeedsResponse) Reset() {
 	*x = ListAllFeedsResponse{}
-	mi := &file_proto_feed_proto_msgTypes[13]
+	mi := &file_proto_feed_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -782,7 +902,7 @@ func (x *ListAllFeedsResponse) String() string {
 func (*ListAllFeedsResponse) ProtoMessage() {}
 
 func (x *ListAllFeedsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_feed_proto_msgTypes[13]
+	mi := &file_proto_feed_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -795,7 +915,7 @@ func (x *ListAllFeedsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAllFeedsResponse.ProtoReflect.Descriptor instead.
 func (*ListAllFeedsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_feed_proto_rawDescGZIP(), []int{13}
+	return file_proto_feed_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListAllFeedsResponse) GetFeeds() []*Feed {
@@ -816,7 +936,7 @@ type CheckSubscriptionRequest struct {
 
 func (x *CheckSubscriptionRequest) Reset() {
 	*x = CheckSubscriptionRequest{}
-	mi := &file_proto_feed_proto_msgTypes[14]
+	mi := &file_proto_feed_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -828,7 +948,7 @@ func (x *CheckSubscriptionRequest) String() string {
 func (*CheckSubscriptionRequest) ProtoMessage() {}
 
 func (x *CheckSubscriptionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_feed_proto_msgTypes[14]
+	mi := &file_proto_feed_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -841,7 +961,7 @@ func (x *CheckSubscriptionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckSubscriptionRequest.ProtoReflect.Descriptor instead.
 func (*CheckSubscriptionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_feed_proto_rawDescGZIP(), []int{14}
+	return file_proto_feed_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CheckSubscriptionRequest) GetUserId() uint64 {
@@ -867,7 +987,7 @@ type CheckSubscriptionResponse struct {
 
 func (x *CheckSubscriptionResponse) Reset() {
 	*x = CheckSubscriptionResponse{}
-	mi := &file_proto_feed_proto_msgTypes[15]
+	mi := &file_proto_feed_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -879,7 +999,7 @@ func (x *CheckSubscriptionResponse) String() string {
 func (*CheckSubscriptionResponse) ProtoMessage() {}
 
 func (x *CheckSubscriptionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_feed_proto_msgTypes[15]
+	mi := &file_proto_feed_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -892,7 +1012,7 @@ func (x *CheckSubscriptionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckSubscriptionResponse.ProtoReflect.Descriptor instead.
 func (*CheckSubscriptionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_feed_proto_rawDescGZIP(), []int{15}
+	return file_proto_feed_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CheckSubscriptionResponse) GetIsSubscribed() bool {
@@ -915,7 +1035,7 @@ const file_proto_feed_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x05 \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\x06 \x01(\tR\tupdatedAt\"\xa5\x02\n" +
+	"updated_at\x18\x06 \x01(\tR\tupdatedAt\"\x8d\x03\n" +
 	"\aArticle\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x17\n" +
 	"\afeed_id\x18\x02 \x01(\x04R\x06feedId\x12\x14\n" +
@@ -930,7 +1050,10 @@ const file_proto_feed_proto_rawDesc = "" +
 	"\x04read\x18\t \x01(\bR\x04read\x12\x18\n" +
 	"\astarred\x18\n" +
 	" \x01(\bR\astarred\x12!\n" +
-	"\fpublished_at\x18\v \x01(\tR\vpublishedAt\"L\n" +
+	"\fpublished_at\x18\v \x01(\tR\vpublishedAt\x12\x18\n" +
+	"\asummary\x18\f \x01(\tR\asummary\x12)\n" +
+	"\x10processing_model\x18\r \x01(\tR\x0fprocessingModel\x12!\n" +
+	"\fprocessed_at\x18\x0e \x01(\tR\vprocessedAt\"L\n" +
 	"\x16SubscribeToFeedRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x04R\x06userId\x12\x19\n" +
 	"\bfeed_url\x18\x02 \x01(\tR\afeedUrl\"<\n" +
@@ -950,7 +1073,13 @@ const file_proto_feed_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\x04R\x06userId\x12\x17\n" +
 	"\afeed_id\x18\x02 \x01(\x04R\x06feedId\"D\n" +
 	"\x14ListArticlesResponse\x12,\n" +
-	"\barticles\x18\x01 \x03(\v2\x10.feed.v1.ArticleR\barticles\"G\n" +
+	"\barticles\x18\x01 \x03(\v2\x10.feed.v1.ArticleR\barticles\"K\n" +
+	"\x11GetArticleRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x04R\x06userId\x12\x1d\n" +
+	"\n" +
+	"article_id\x18\x02 \x01(\x04R\tarticleId\"@\n" +
+	"\x12GetArticleResponse\x12*\n" +
+	"\aarticle\x18\x01 \x01(\v2\x10.feed.v1.ArticleR\aarticle\"G\n" +
 	"\x13TriggerFetchRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x04R\x06userId\x12\x17\n" +
 	"\afeed_id\x18\x02 \x01(\x04R\x06feedId\"J\n" +
@@ -964,12 +1093,14 @@ const file_proto_feed_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\x04R\x06userId\x12\x17\n" +
 	"\afeed_id\x18\x02 \x01(\x04R\x06feedId\"@\n" +
 	"\x19CheckSubscriptionResponse\x12#\n" +
-	"\ris_subscribed\x18\x01 \x01(\bR\fisSubscribed2\xd8\x04\n" +
+	"\ris_subscribed\x18\x01 \x01(\bR\fisSubscribed2\x9f\x05\n" +
 	"\vFeedService\x12T\n" +
 	"\x0fSubscribeToFeed\x12\x1f.feed.v1.SubscribeToFeedRequest\x1a .feed.v1.SubscribeToFeedResponse\x12N\n" +
 	"\rListUserFeeds\x12\x1d.feed.v1.ListUserFeedsRequest\x1a\x1e.feed.v1.ListUserFeedsResponse\x12`\n" +
 	"\x13UnsubscribeFromFeed\x12#.feed.v1.UnsubscribeFromFeedRequest\x1a$.feed.v1.UnsubscribeFromFeedResponse\x12K\n" +
-	"\fListArticles\x12\x1c.feed.v1.ListArticlesRequest\x1a\x1d.feed.v1.ListArticlesResponse\x12K\n" +
+	"\fListArticles\x12\x1c.feed.v1.ListArticlesRequest\x1a\x1d.feed.v1.ListArticlesResponse\x12E\n" +
+	"\n" +
+	"GetArticle\x12\x1a.feed.v1.GetArticleRequest\x1a\x1b.feed.v1.GetArticleResponse\x12K\n" +
 	"\fTriggerFetch\x12\x1c.feed.v1.TriggerFetchRequest\x1a\x1d.feed.v1.TriggerFetchResponse\x12K\n" +
 	"\fListAllFeeds\x12\x1c.feed.v1.ListAllFeedsRequest\x1a\x1d.feed.v1.ListAllFeedsResponse\x12Z\n" +
 	"\x11CheckSubscription\x12!.feed.v1.CheckSubscriptionRequest\x1a\".feed.v1.CheckSubscriptionResponseB9Z7github.com/Fancu1/phoenix-rss/protos/gen/go/feed;feedpbb\x06proto3"
@@ -986,7 +1117,7 @@ func file_proto_feed_proto_rawDescGZIP() []byte {
 	return file_proto_feed_proto_rawDescData
 }
 
-var file_proto_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_proto_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_proto_feed_proto_goTypes = []any{
 	(*Feed)(nil),                        // 0: feed.v1.Feed
 	(*Article)(nil),                     // 1: feed.v1.Article
@@ -998,37 +1129,42 @@ var file_proto_feed_proto_goTypes = []any{
 	(*UnsubscribeFromFeedResponse)(nil), // 7: feed.v1.UnsubscribeFromFeedResponse
 	(*ListArticlesRequest)(nil),         // 8: feed.v1.ListArticlesRequest
 	(*ListArticlesResponse)(nil),        // 9: feed.v1.ListArticlesResponse
-	(*TriggerFetchRequest)(nil),         // 10: feed.v1.TriggerFetchRequest
-	(*TriggerFetchResponse)(nil),        // 11: feed.v1.TriggerFetchResponse
-	(*ListAllFeedsRequest)(nil),         // 12: feed.v1.ListAllFeedsRequest
-	(*ListAllFeedsResponse)(nil),        // 13: feed.v1.ListAllFeedsResponse
-	(*CheckSubscriptionRequest)(nil),    // 14: feed.v1.CheckSubscriptionRequest
-	(*CheckSubscriptionResponse)(nil),   // 15: feed.v1.CheckSubscriptionResponse
+	(*GetArticleRequest)(nil),           // 10: feed.v1.GetArticleRequest
+	(*GetArticleResponse)(nil),          // 11: feed.v1.GetArticleResponse
+	(*TriggerFetchRequest)(nil),         // 12: feed.v1.TriggerFetchRequest
+	(*TriggerFetchResponse)(nil),        // 13: feed.v1.TriggerFetchResponse
+	(*ListAllFeedsRequest)(nil),         // 14: feed.v1.ListAllFeedsRequest
+	(*ListAllFeedsResponse)(nil),        // 15: feed.v1.ListAllFeedsResponse
+	(*CheckSubscriptionRequest)(nil),    // 16: feed.v1.CheckSubscriptionRequest
+	(*CheckSubscriptionResponse)(nil),   // 17: feed.v1.CheckSubscriptionResponse
 }
 var file_proto_feed_proto_depIdxs = []int32{
 	0,  // 0: feed.v1.SubscribeToFeedResponse.feed:type_name -> feed.v1.Feed
 	0,  // 1: feed.v1.ListUserFeedsResponse.feeds:type_name -> feed.v1.Feed
 	1,  // 2: feed.v1.ListArticlesResponse.articles:type_name -> feed.v1.Article
-	0,  // 3: feed.v1.ListAllFeedsResponse.feeds:type_name -> feed.v1.Feed
-	2,  // 4: feed.v1.FeedService.SubscribeToFeed:input_type -> feed.v1.SubscribeToFeedRequest
-	4,  // 5: feed.v1.FeedService.ListUserFeeds:input_type -> feed.v1.ListUserFeedsRequest
-	6,  // 6: feed.v1.FeedService.UnsubscribeFromFeed:input_type -> feed.v1.UnsubscribeFromFeedRequest
-	8,  // 7: feed.v1.FeedService.ListArticles:input_type -> feed.v1.ListArticlesRequest
-	10, // 8: feed.v1.FeedService.TriggerFetch:input_type -> feed.v1.TriggerFetchRequest
-	12, // 9: feed.v1.FeedService.ListAllFeeds:input_type -> feed.v1.ListAllFeedsRequest
-	14, // 10: feed.v1.FeedService.CheckSubscription:input_type -> feed.v1.CheckSubscriptionRequest
-	3,  // 11: feed.v1.FeedService.SubscribeToFeed:output_type -> feed.v1.SubscribeToFeedResponse
-	5,  // 12: feed.v1.FeedService.ListUserFeeds:output_type -> feed.v1.ListUserFeedsResponse
-	7,  // 13: feed.v1.FeedService.UnsubscribeFromFeed:output_type -> feed.v1.UnsubscribeFromFeedResponse
-	9,  // 14: feed.v1.FeedService.ListArticles:output_type -> feed.v1.ListArticlesResponse
-	11, // 15: feed.v1.FeedService.TriggerFetch:output_type -> feed.v1.TriggerFetchResponse
-	13, // 16: feed.v1.FeedService.ListAllFeeds:output_type -> feed.v1.ListAllFeedsResponse
-	15, // 17: feed.v1.FeedService.CheckSubscription:output_type -> feed.v1.CheckSubscriptionResponse
-	11, // [11:18] is the sub-list for method output_type
-	4,  // [4:11] is the sub-list for method input_type
-	4,  // [4:4] is the sub-list for extension type_name
-	4,  // [4:4] is the sub-list for extension extendee
-	0,  // [0:4] is the sub-list for field type_name
+	1,  // 3: feed.v1.GetArticleResponse.article:type_name -> feed.v1.Article
+	0,  // 4: feed.v1.ListAllFeedsResponse.feeds:type_name -> feed.v1.Feed
+	2,  // 5: feed.v1.FeedService.SubscribeToFeed:input_type -> feed.v1.SubscribeToFeedRequest
+	4,  // 6: feed.v1.FeedService.ListUserFeeds:input_type -> feed.v1.ListUserFeedsRequest
+	6,  // 7: feed.v1.FeedService.UnsubscribeFromFeed:input_type -> feed.v1.UnsubscribeFromFeedRequest
+	8,  // 8: feed.v1.FeedService.ListArticles:input_type -> feed.v1.ListArticlesRequest
+	10, // 9: feed.v1.FeedService.GetArticle:input_type -> feed.v1.GetArticleRequest
+	12, // 10: feed.v1.FeedService.TriggerFetch:input_type -> feed.v1.TriggerFetchRequest
+	14, // 11: feed.v1.FeedService.ListAllFeeds:input_type -> feed.v1.ListAllFeedsRequest
+	16, // 12: feed.v1.FeedService.CheckSubscription:input_type -> feed.v1.CheckSubscriptionRequest
+	3,  // 13: feed.v1.FeedService.SubscribeToFeed:output_type -> feed.v1.SubscribeToFeedResponse
+	5,  // 14: feed.v1.FeedService.ListUserFeeds:output_type -> feed.v1.ListUserFeedsResponse
+	7,  // 15: feed.v1.FeedService.UnsubscribeFromFeed:output_type -> feed.v1.UnsubscribeFromFeedResponse
+	9,  // 16: feed.v1.FeedService.ListArticles:output_type -> feed.v1.ListArticlesResponse
+	11, // 17: feed.v1.FeedService.GetArticle:output_type -> feed.v1.GetArticleResponse
+	13, // 18: feed.v1.FeedService.TriggerFetch:output_type -> feed.v1.TriggerFetchResponse
+	15, // 19: feed.v1.FeedService.ListAllFeeds:output_type -> feed.v1.ListAllFeedsResponse
+	17, // 20: feed.v1.FeedService.CheckSubscription:output_type -> feed.v1.CheckSubscriptionResponse
+	13, // [13:21] is the sub-list for method output_type
+	5,  // [5:13] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_proto_feed_proto_init() }
@@ -1042,7 +1178,7 @@ func file_proto_feed_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_feed_proto_rawDesc), len(file_proto_feed_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

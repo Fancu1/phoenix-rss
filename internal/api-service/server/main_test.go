@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"embed"
 	"log"
 	"log/slog"
 	"net"
@@ -44,6 +45,9 @@ func (m *MockArticleEventProducer) Close() error {
 }
 
 var app *TestApp
+
+//go:embed testdata/dist/**
+var testStaticFS embed.FS
 
 type TestApp struct {
 	Server       *httptest.Server
@@ -94,7 +98,10 @@ func TestMain(m *testing.M) {
 	}
 
 	// Create server with gRPC clients
-	s := New(cfg, logger.New(slog.LevelDebug), feedService, articleService, userService)
+	s, err := New(cfg, logger.New(slog.LevelDebug), feedService, articleService, userService, testStaticFS)
+	if err != nil {
+		log.Fatalf("Failed to create test server: %v", err)
+	}
 
 	app = &TestApp{
 		Server:       httptest.NewServer(s.engine),

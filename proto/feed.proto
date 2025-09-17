@@ -27,6 +27,9 @@ message Article {
   bool read = 9;
   bool starred = 10;
   string published_at = 11;
+  string summary = 12;
+  string processing_model = 13;
+  string processed_at = 14;
 }
 
 // Subscribe to feed requests and responses
@@ -67,6 +70,15 @@ message ListArticlesRequest {
 
 message ListArticlesResponse {
   repeated Article articles = 1;
+}
+
+message GetArticleRequest {
+  uint64 user_id = 1;
+  uint64 article_id = 2;
+}
+
+message GetArticleResponse {
+  Article article = 1;
 }
 
 // Trigger manual fetch requests and responses
@@ -112,6 +124,9 @@ service FeedService {
   
   // Get articles for a specific feed (user must be subscribed)
   rpc ListArticles(ListArticlesRequest) returns (ListArticlesResponse);
+  
+  // Get a single article by ID (user must be subscribed to its feed)
+  rpc GetArticle(GetArticleRequest) returns (GetArticleResponse);
   
   // Trigger manual fetch for a specific feed
   rpc TriggerFetch(TriggerFetchRequest) returns (TriggerFetchResponse);

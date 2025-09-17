@@ -16,6 +16,7 @@ import (
 type ArticleServiceInterface interface {
 	FetchAndSaveArticles(ctx context.Context, feedID uint) ([]*models.Article, error)
 	ListArticlesByFeedID(ctx context.Context, userID, feedID uint) ([]*models.Article, error)
+	GetArticleByID(ctx context.Context, userID, articleID uint) (*models.Article, error)
 	TriggerFetch(ctx context.Context, userID, feedID uint) error
 }
 
@@ -73,6 +74,25 @@ func (c *ArticleServiceClient) ListArticlesByFeedID(ctx context.Context, userID,
 	return articles, nil
 }
 
+// GetArticleByID returns a single article after validating user ownership
+func (c *ArticleServiceClient) GetArticleByID(ctx context.Context, userID, articleID uint) (*models.Article, error) {
+	req := &feedpb.GetArticleRequest{
+		UserId:    uint64(userID),
+		ArticleId: uint64(articleID),
+	}
+
+	resp, err := c.client.GetArticle(ctx, req)
+	if err != nil {
+		return nil, MapGRPCError(err)
+	}
+
+	if resp.Article == nil {
+		return nil, fmt.Errorf("article %d not found", articleID)
+	}
+
+	return c.convertPbToArticle(resp.Article)
+}
+
 // TriggerFetch trigger a manual fetch for a specific feed
 func (c *ArticleServiceClient) TriggerFetch(ctx context.Context, userID, feedID uint) error {
 	req := &feedpb.TriggerFetchRequest{
@@ -105,17 +125,41 @@ func (c *ArticleServiceClient) convertPbToArticle(pbArticle *feedpb.Article) (*m
 		return nil, fmt.Errorf("failed to parse published_at: %w", err)
 	}
 
+	var processedAt *time.Time
+	if pbArticle.ProcessedAt != "" {
+		parsedProcessedAt, err := time.Parse(time.RFC3339, pbArticle.ProcessedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse processed_at: %w", err)
+		}
+		processedAt = &parsedProcessedAt
+	}
+
+	var summary *string
+	if pbArticle.Summary != "" {
+		s := pbArticle.Summary
+		summary = &s
+	}
+
+	var processingModel *string
+	if pbArticle.ProcessingModel != "" {
+		m := pbArticle.ProcessingModel
+		processingModel = &m
+	}
+
 	return &models.Article{
-		ID:          uint(pbArticle.Id),
-		FeedID:      uint(pbArticle.FeedId),
-		Title:       pbArticle.Title,
-		URL:         pbArticle.Url,
-		Description: pbArticle.Description,
-		Content:     pbArticle.Content,
-		CreatedAt:   createdAt,
-		UpdatedAt:   updatedAt,
-		Read:        pbArticle.Read,
-		Starred:     pbArticle.Starred,
-		PublishedAt: publishedAt,
+		ID:              uint(pbArticle.Id),
+		FeedID:          uint(pbArticle.FeedId),
+		Title:           pbArticle.Title,
+		URL:             pbArticle.Url,
+		Description:     pbArticle.Description,
+		Content:         pbArticle.Content,
+		CreatedAt:       createdAt,
+		UpdatedAt:       updatedAt,
+		Read:            pbArticle.Read,
+		Starred:         pbArticle.Starred,
+		PublishedAt:     publishedAt,
+		Summary:         summary,
+		ProcessingModel: processingModel,
+		ProcessedAt:     processedAt,
 	}, nil
 }

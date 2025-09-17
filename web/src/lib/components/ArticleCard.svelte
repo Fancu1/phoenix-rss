@@ -1,6 +1,10 @@
 <script>
+	import { createEventDispatcher } from 'svelte';
+
 	export let article;
 	export let showFeedName = false;
+
+	const dispatch = createEventDispatcher();
 
 	// Format the published date
 	function formatDate(dateString) {
@@ -35,11 +39,9 @@
 		}
 	}
 
-	// Open article in new tab
+	// Notify parent to open article reader
 	function handleClick() {
-		if (article.url) {
-			window.open(article.url, '_blank', 'noopener,noreferrer');
-		}
+		dispatch('open', { article });
 	}
 
 	// Truncate text with ellipsis

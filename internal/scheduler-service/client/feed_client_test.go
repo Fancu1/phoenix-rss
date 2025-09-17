@@ -45,6 +45,10 @@ func (m *MockFeedServiceClient) ListArticles(ctx context.Context, req *feedpb.Li
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
+func (m *MockFeedServiceClient) GetArticle(ctx context.Context, req *feedpb.GetArticleRequest, opts ...grpc.CallOption) (*feedpb.GetArticleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
 func (m *MockFeedServiceClient) TriggerFetch(ctx context.Context, req *feedpb.TriggerFetchRequest, opts ...grpc.CallOption) (*feedpb.TriggerFetchResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }

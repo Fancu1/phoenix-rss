@@ -2,7 +2,9 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	htmlstd "html"
 	"log/slog"
 	"time"
 
@@ -14,11 +16,13 @@ import (
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 	article_eventspb "github.com/Fancu1/phoenix-rss/proto/gen/article_events"
+	"gorm.io/gorm"
 )
 
 type ArticleServiceInterface interface {
 	FetchAndSaveArticles(ctx context.Context, feedID uint) ([]*models.Article, error)
 	ListArticlesByFeedID(ctx context.Context, userID, feedID uint) ([]*models.Article, error)
+	GetArticleByID(ctx context.Context, userID, articleID uint) (*models.Article, error)
 	HandleArticleProcessed(ctx context.Context, event *article_eventspb.ArticleProcessedEvent) error
 }
 
@@ -86,11 +90,25 @@ func (s *ArticleService) FetchAndSaveArticles(ctx context.Context, feedID uint) 
 			publishedAt = *item.PublishedParsed
 		}
 
+		baseURL := firstNonEmpty(item.Link, parsedFeed.Link, feed.URL)
+		content, description, sanitizeErr := sanitizeFeedItem(item, baseURL)
+		if sanitizeErr != nil {
+			log.Warn("failed to sanitize article content", "url", item.Link, "error", sanitizeErr.Error())
+			fallback := firstNonEmpty(item.Content, item.Description)
+			safeText := sanitizePlainText(fallback)
+			if safeText != "" {
+				content = "<pre>" + htmlstd.EscapeString(safeText) + "</pre>"
+				if description == "" {
+					description = safeText
+				}
+			}
+		}
+
 		article := &models.Article{
 			Title:       item.Title,
 			URL:         item.Link,
-			Description: item.Description,
-			Content:     item.Content,
+			Description: description,
+			Content:     content,
 			FeedID:      feedID,
 			PublishedAt: publishedAt,
 			CreatedAt:   time.Now(),
@@ -171,6 +189,36 @@ func (s *ArticleService) ListArticlesByFeedID(ctx context.Context, userID, feedI
 
 	log.Info("successfully listed articles", "user_id", userID, "feed_id", feedID, "count", len(articles))
 	return articles, nil
+}
+
+func (s *ArticleService) GetArticleByID(ctx context.Context, userID, articleID uint) (*models.Article, error) {
+	log := logger.FromContext(ctx)
+
+	log.Info("retrieving article", "user_id", userID, "article_id", articleID)
+
+	article, err := s.articleRepo.GetByID(ctx, articleID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Warn("article not found", "article_id", articleID)
+			return nil, ierr.ErrArticleNotFound
+		}
+
+		log.Error("failed to load article", "article_id", articleID, "error", err.Error())
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to get article %d: %w", articleID, err))
+	}
+
+	isSubscribed, err := s.feedRepo.IsUserSubscribed(ctx, userID, article.FeedID)
+	if err != nil {
+		log.Error("failed to verify subscription", "user_id", userID, "feed_id", article.FeedID, "error", err.Error())
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to verify subscription for user %d and feed %d: %w", userID, article.FeedID, err))
+	}
+
+	if !isSubscribed {
+		log.Warn("user not subscribed to feed containing article", "user_id", userID, "feed_id", article.FeedID, "article_id", articleID)
+		return nil, ierr.ErrNotSubscribed
+	}
+
+	return article, nil
 }
 
 // HandleArticleProcessed handles an ArticleProcessedEvent by updating the article with AI data

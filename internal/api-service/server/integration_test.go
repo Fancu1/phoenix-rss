@@ -201,6 +201,7 @@ func TestUnauthorizedAccess(t *testing.T) {
 		{http.MethodDelete, "/api/v1/feeds/1"},
 		{http.MethodPost, "/api/v1/feeds/1/fetch"},
 		{http.MethodGet, "/api/v1/feeds/1/articles"},
+		{http.MethodGet, "/api/v1/articles/1"},
 	}
 
 	for _, endpoint := range protectedEndpoints {
@@ -250,6 +251,7 @@ func TestFeedManagementE2E(t *testing.T) {
 	})
 
 	var createdFeed models.Feed
+	var firstArticle *models.Article
 
 	t.Run("Subscribe to feed", func(t *testing.T) {
 		reqBody := fmt.Sprintf(`{"url": "%s"}`, TestRSSURL)
@@ -304,9 +306,30 @@ func TestFeedManagementE2E(t *testing.T) {
 		require.Equal(t, createdFeed.ID, article.FeedID)
 		require.NotEmpty(t, article.Title)
 		require.NotEmpty(t, article.URL)
+		require.NotEmpty(t, article.Content)
+		require.NotContains(t, article.Content, "script")
+
+		firstArticle = article
 
 		t.Logf("Successfully fetched %d articles for feed %d", len(articles), createdFeed.ID)
 	})
+
+	if firstArticle != nil {
+		t.Run("Get article detail", func(t *testing.T) {
+			articleURL := fmt.Sprintf("%s/api/v1/articles/%d", app.Server.URL, firstArticle.ID)
+			resp := makeAuthenticatedRequest(t, http.MethodGet, articleURL, "", token)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			var detail models.Article
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&detail))
+			require.Equal(t, firstArticle.ID, detail.ID)
+			require.Equal(t, firstArticle.FeedID, detail.FeedID)
+			require.NotEmpty(t, detail.Content)
+			require.NotContains(t, detail.Content, "script")
+		})
+	}
 
 	t.Run("Unsubscribe from feed", func(t *testing.T) {
 		unsubURL := fmt.Sprintf("%s/api/v1/feeds/%d", app.Server.URL, createdFeed.ID)
@@ -340,6 +363,25 @@ func TestUserIsolation(t *testing.T) {
 	var user1Feed models.Feed
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&user1Feed))
 
+	fetchURL := fmt.Sprintf("%s/api/v1/feeds/%d/fetch", app.Server.URL, user1Feed.ID)
+	fetchResp := makeAuthenticatedRequest(t, http.MethodPost, fetchURL, "", token1)
+	defer fetchResp.Body.Close()
+	require.Equal(t, http.StatusAccepted, fetchResp.StatusCode)
+
+	waitForArticles(t, token1, user1Feed.ID)
+
+	listURL := fmt.Sprintf("%s/api/v1/feeds/%d/articles", app.Server.URL, user1Feed.ID)
+	user1ListResp := makeAuthenticatedRequest(t, http.MethodGet, listURL, "", token1)
+	defer user1ListResp.Body.Close()
+
+	var user1Articles []*models.Article
+	require.Equal(t, http.StatusOK, user1ListResp.StatusCode)
+	require.NoError(t, json.NewDecoder(user1ListResp.Body).Decode(&user1Articles))
+	var user1ArticleID uint
+	if len(user1Articles) > 0 {
+		user1ArticleID = user1Articles[0].ID
+	}
+
 	t.Run("User2 cannot see User1's feeds", func(t *testing.T) {
 		resp := makeAuthenticatedRequest(t, http.MethodGet, app.Server.URL+"/api/v1/feeds", "", token2)
 		defer resp.Body.Close()
@@ -365,6 +407,23 @@ func TestUserIsolation(t *testing.T) {
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&errorResp))
 		require.Contains(t, errorResp.Message, "Not subscribed")
 	})
+
+	if user1ArticleID != 0 {
+		t.Run("User2 cannot access User1's article detail", func(t *testing.T) {
+			articleURL := fmt.Sprintf("%s/api/v1/articles/%d", app.Server.URL, user1ArticleID)
+			resp := makeAuthenticatedRequest(t, http.MethodGet, articleURL, "", token2)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+			var errorResp struct {
+				Code    int    `json:"code"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&errorResp))
+			require.Contains(t, errorResp.Message, "Not subscribed")
+		})
+	}
 }
 
 func TestHealthCheck(t *testing.T) {

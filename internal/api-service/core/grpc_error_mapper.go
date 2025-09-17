@@ -36,7 +36,16 @@ func MapGRPCError(err error) error {
 	case codes.AlreadyExists:
 		return ierr.ErrUserExists.WithCause(fmt.Errorf(st.Message()))
 	case codes.NotFound:
-		return ierr.ErrUserNotFound.WithCause(fmt.Errorf(st.Message()))
+		switch st.Message() {
+		case "Article not found":
+			return ierr.ErrArticleNotFound
+		case "Feed not found":
+			return ierr.ErrFeedNotFound
+		case "User not found":
+			return ierr.ErrUserNotFound
+		default:
+			return ierr.ErrInternalServer.WithCause(fmt.Errorf(st.Message()))
+		}
 	case codes.PermissionDenied:
 		if st.Message() == "Not subscribed to this feed" {
 			return ierr.ErrNotSubscribed

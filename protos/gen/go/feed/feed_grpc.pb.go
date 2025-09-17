@@ -8,7 +8,6 @@ package feedpb
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -24,6 +23,7 @@ const (
 	FeedService_ListUserFeeds_FullMethodName       = "/feed.v1.FeedService/ListUserFeeds"
 	FeedService_UnsubscribeFromFeed_FullMethodName = "/feed.v1.FeedService/UnsubscribeFromFeed"
 	FeedService_ListArticles_FullMethodName        = "/feed.v1.FeedService/ListArticles"
+	FeedService_GetArticle_FullMethodName          = "/feed.v1.FeedService/GetArticle"
 	FeedService_TriggerFetch_FullMethodName        = "/feed.v1.FeedService/TriggerFetch"
 	FeedService_ListAllFeeds_FullMethodName        = "/feed.v1.FeedService/ListAllFeeds"
 	FeedService_CheckSubscription_FullMethodName   = "/feed.v1.FeedService/CheckSubscription"
@@ -43,6 +43,8 @@ type FeedServiceClient interface {
 	UnsubscribeFromFeed(ctx context.Context, in *UnsubscribeFromFeedRequest, opts ...grpc.CallOption) (*UnsubscribeFromFeedResponse, error)
 	// Get articles for a specific feed (user must be subscribed)
 	ListArticles(ctx context.Context, in *ListArticlesRequest, opts ...grpc.CallOption) (*ListArticlesResponse, error)
+	// Get a single article by ID (user must be subscribed to its feed)
+	GetArticle(ctx context.Context, in *GetArticleRequest, opts ...grpc.CallOption) (*GetArticleResponse, error)
 	// Trigger manual fetch for a specific feed
 	TriggerFetch(ctx context.Context, in *TriggerFetchRequest, opts ...grpc.CallOption) (*TriggerFetchResponse, error)
 	// List all feeds in the system (deprecated, for backward compatibility)
@@ -99,6 +101,16 @@ func (c *feedServiceClient) ListArticles(ctx context.Context, in *ListArticlesRe
 	return out, nil
 }
 
+func (c *feedServiceClient) GetArticle(ctx context.Context, in *GetArticleRequest, opts ...grpc.CallOption) (*GetArticleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetArticleResponse)
+	err := c.cc.Invoke(ctx, FeedService_GetArticle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *feedServiceClient) TriggerFetch(ctx context.Context, in *TriggerFetchRequest, opts ...grpc.CallOption) (*TriggerFetchResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TriggerFetchResponse)
@@ -143,6 +155,8 @@ type FeedServiceServer interface {
 	UnsubscribeFromFeed(context.Context, *UnsubscribeFromFeedRequest) (*UnsubscribeFromFeedResponse, error)
 	// Get articles for a specific feed (user must be subscribed)
 	ListArticles(context.Context, *ListArticlesRequest) (*ListArticlesResponse, error)
+	// Get a single article by ID (user must be subscribed to its feed)
+	GetArticle(context.Context, *GetArticleRequest) (*GetArticleResponse, error)
 	// Trigger manual fetch for a specific feed
 	TriggerFetch(context.Context, *TriggerFetchRequest) (*TriggerFetchResponse, error)
 	// List all feeds in the system (deprecated, for backward compatibility)
@@ -170,6 +184,9 @@ func (UnimplementedFeedServiceServer) UnsubscribeFromFeed(context.Context, *Unsu
 }
 func (UnimplementedFeedServiceServer) ListArticles(context.Context, *ListArticlesRequest) (*ListArticlesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListArticles not implemented")
+}
+func (UnimplementedFeedServiceServer) GetArticle(context.Context, *GetArticleRequest) (*GetArticleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetArticle not implemented")
 }
 func (UnimplementedFeedServiceServer) TriggerFetch(context.Context, *TriggerFetchRequest) (*TriggerFetchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TriggerFetch not implemented")
@@ -273,6 +290,24 @@ func _FeedService_ListArticles_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FeedService_GetArticle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetArticleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FeedServiceServer).GetArticle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FeedService_GetArticle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FeedServiceServer).GetArticle(ctx, req.(*GetArticleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _FeedService_TriggerFetch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(TriggerFetchRequest)
 	if err := dec(in); err != nil {
@@ -349,6 +384,10 @@ var FeedService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListArticles",
 			Handler:    _FeedService_ListArticles_Handler,
+		},
+		{
+			MethodName: "GetArticle",
+			Handler:    _FeedService_GetArticle_Handler,
 		},
 		{
 			MethodName: "TriggerFetch",

@@ -141,5 +141,9 @@ export const feeds = {
 		})
 };
 
+export const articles = {
+	getById: (articleId) => apiFetch(`/articles/${articleId}`)
+};
+
 // Export the base fetch function for custom requests
 export { apiFetch };

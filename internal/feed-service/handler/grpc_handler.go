@@ -10,6 +10,7 @@ import (
 
 	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/core"
+	"github.com/Fancu1/phoenix-rss/internal/feed-service/models"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 	feedpb "github.com/Fancu1/phoenix-rss/protos/gen/go/feed"
@@ -149,23 +150,32 @@ func (h *FeedServiceHandler) ListArticles(ctx context.Context, req *feedpb.ListA
 
 	pbArticles := make([]*feedpb.Article, len(articles))
 	for i, article := range articles {
-		pbArticles[i] = &feedpb.Article{
-			Id:          uint64(article.ID),
-			FeedId:      uint64(article.FeedID),
-			Title:       article.Title,
-			Url:         article.URL,
-			Description: article.Description,
-			Content:     article.Content,
-			CreatedAt:   article.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:   article.UpdatedAt.Format(time.RFC3339),
-			Read:        article.Read,
-			Starred:     article.Starred,
-			PublishedAt: article.PublishedAt.Format(time.RFC3339),
-		}
+		pbArticles[i] = toProtoArticle(article)
 	}
 
 	log.Info("successfully listed articles", "user_id", req.UserId, "feed_id", req.FeedId, "count", len(articles))
 	return &feedpb.ListArticlesResponse{Articles: pbArticles}, nil
+}
+
+func (h *FeedServiceHandler) GetArticle(ctx context.Context, req *feedpb.GetArticleRequest) (*feedpb.GetArticleResponse, error) {
+	log := logger.FromContext(ctx)
+	log.Info("gRPC: GetArticle", "user_id", req.UserId, "article_id", req.ArticleId)
+
+	if req.UserId == 0 {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+	if req.ArticleId == 0 {
+		return nil, status.Error(codes.InvalidArgument, "article_id is required")
+	}
+
+	article, err := h.articleService.GetArticleByID(ctx, uint(req.UserId), uint(req.ArticleId))
+	if err != nil {
+		log.Error("failed to get article", "user_id", req.UserId, "article_id", req.ArticleId, "error", err.Error())
+		return nil, h.mapErrorToGRPC(err)
+	}
+
+	log.Info("successfully retrieved article", "user_id", req.UserId, "article_id", req.ArticleId)
+	return &feedpb.GetArticleResponse{Article: toProtoArticle(article)}, nil
 }
 
 // TriggerFetch publishe a Kafka event for manual feed fetch
@@ -277,4 +287,32 @@ func (h *FeedServiceHandler) mapErrorToGRPC(err error) error {
 		h.logger.Error("unmapped error", "error", err.Error())
 		return status.Error(codes.Internal, "Internal server error")
 	}
+}
+
+func toProtoArticle(article *models.Article) *feedpb.Article {
+	pb := &feedpb.Article{
+		Id:          uint64(article.ID),
+		FeedId:      uint64(article.FeedID),
+		Title:       article.Title,
+		Url:         article.URL,
+		Description: article.Description,
+		Content:     article.Content,
+		CreatedAt:   article.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   article.UpdatedAt.Format(time.RFC3339),
+		Read:        article.Read,
+		Starred:     article.Starred,
+		PublishedAt: article.PublishedAt.Format(time.RFC3339),
+	}
+
+	if article.Summary != nil {
+		pb.Summary = *article.Summary
+	}
+	if article.ProcessingModel != nil {
+		pb.ProcessingModel = *article.ProcessingModel
+	}
+	if article.ProcessedAt != nil {
+		pb.ProcessedAt = article.ProcessedAt.Format(time.RFC3339)
+	}
+
+	return pb
 }
