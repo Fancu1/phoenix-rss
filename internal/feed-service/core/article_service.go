@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mmcdole/gofeed"
+	"gorm.io/gorm"
 
 	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/models"
@@ -16,7 +17,6 @@ import (
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 	article_eventspb "github.com/Fancu1/phoenix-rss/proto/gen/article_events"
-	"gorm.io/gorm"
 )
 
 type ArticleServiceInterface interface {
@@ -81,6 +81,7 @@ func (s *ArticleService) FetchAndSaveArticles(ctx context.Context, feedID uint) 
 		}
 
 		if exists {
+			// TODO: update article if it update time changed
 			log.Debug("article already exists, skipping", "url", item.Link)
 			continue
 		}

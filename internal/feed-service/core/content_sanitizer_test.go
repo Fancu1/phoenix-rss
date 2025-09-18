@@ -40,3 +40,16 @@ func TestSanitizeFeedItem_PlainTextWrapped(t *testing.T) {
 	require.Contains(t, content, "<pre>")
 	require.Contains(t, content, "Plain text content")
 }
+
+func TestSanitizeFeedItem_FallbackToDescription(t *testing.T) {
+	item := &gofeed.Item{
+		Content:     "",
+		Description: "<p>Description only body</p>",
+	}
+
+	content, description, err := sanitizeFeedItem(item, "https://example.com/base")
+	require.NoError(t, err)
+	require.NotEmpty(t, content)
+	require.Contains(t, content, "Description only body")
+	require.Equal(t, "Description only body", description)
+}

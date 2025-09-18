@@ -28,6 +28,14 @@ func sanitizeFeedItem(item *gofeed.Item, baseURL string) (string, string, error)
 		}
 	}
 
+	// If we still don't have HTML content, attempt to sanitize the description as a fallback.
+	if strings.TrimSpace(sanitizedContent) == "" && strings.TrimSpace(item.Description) != "" {
+		fallbackHTML, fallbackErr := sanitizeHTML(item.Description, baseURL)
+		if fallbackErr == nil {
+			sanitizedContent = fallbackHTML
+		}
+	}
+
 	description := sanitizePlainText(item.Description)
 	if description == "" {
 		description = sanitizePlainText(sanitizedContent)
