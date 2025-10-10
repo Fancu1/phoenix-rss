@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -50,6 +51,47 @@ func main() {
 	feedService := core.NewFeedService(feedRepo, log)
 	articleService := core.NewArticleService(feedRepo, articleRepo, aiEventProducer, log)
 
+	updateTimeout, err := time.ParseDuration(cfg.FeedService.ArticleUpdate.HTTPTimeout)
+	if err != nil {
+		log.Error("invalid article update http timeout", "value", cfg.FeedService.ArticleUpdate.HTTPTimeout, "error", err)
+		os.Exit(1)
+	}
+	backoffInitial, err := time.ParseDuration(cfg.FeedService.ArticleUpdate.HTTPRetryBackoffInitial)
+	if err != nil {
+		log.Error("invalid article update backoff initial", "value", cfg.FeedService.ArticleUpdate.HTTPRetryBackoffInitial, "error", err)
+		os.Exit(1)
+	}
+	backoffMax, err := time.ParseDuration(cfg.FeedService.ArticleUpdate.HTTPRetryBackoffMax)
+	if err != nil {
+		log.Error("invalid article update backoff max", "value", cfg.FeedService.ArticleUpdate.HTTPRetryBackoffMax, "error", err)
+		os.Exit(1)
+	}
+	robotsTTL, err := time.ParseDuration(cfg.FeedService.ArticleUpdate.RobotsCacheTTL)
+	if err != nil {
+		log.Error("invalid robots cache ttl", "value", cfg.FeedService.ArticleUpdate.RobotsCacheTTL, "error", err)
+		os.Exit(1)
+	}
+
+	httpClient := &http.Client{Timeout: updateTimeout}
+	robotsClient := core.NewRobotsClient(httpClient, robotsTTL, log)
+	articleChecker := core.NewArticleUpdateChecker(articleRepo, log, httpClient, robotsClient, core.ArticleUpdateConfig{
+		UserAgent:       cfg.FeedService.ArticleUpdate.HTTPUserAgent,
+		MaxAttempts:     cfg.FeedService.ArticleUpdate.HTTPRetryMaxAttempts,
+		BackoffInitial:  backoffInitial,
+		BackoffMax:      backoffMax,
+		Jitter:          cfg.FeedService.ArticleUpdate.HTTPRetryJitter,
+		MaxContentBytes: cfg.FeedService.ArticleUpdate.MaxContentBytes,
+		RespectRobots:   cfg.FeedService.ArticleUpdate.RespectRobots,
+	})
+	articleUpdateWorker := worker.NewArticleUpdateWorker(log, articleChecker)
+
+	articleCheckConsumer := events.NewKafkaArticleCheckConsumer(log, events.KafkaConfig{
+		Brokers: cfg.Kafka.Brokers,
+		Topic:   cfg.Kafka.ArticleCheck.Topic,
+		GroupID: cfg.Kafka.ArticleCheck.FeedServiceGroupID,
+	}, articleUpdateWorker.HandleArticleCheck)
+	defer articleCheckConsumer.Stop(context.Background())
+
 	feedFetchProducer := events.NewKafkaProducer(log, events.KafkaConfig{
 		Brokers: cfg.Kafka.Brokers,
 		Topic:   cfg.Kafka.FeedFetch.Topic,
@@ -89,6 +131,11 @@ func main() {
 	g.Go(func() error {
 		log.Info("starting AI event handler")
 		return aiResultHandler.Start(ctx)
+	})
+
+	g.Go(func() error {
+		log.Info("starting article check consumer")
+		return articleCheckConsumer.Start(ctx)
 	})
 
 	g.Go(func() error {

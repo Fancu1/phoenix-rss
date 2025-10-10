@@ -15,6 +15,15 @@ type Consumer interface {
 	Stop(ctx context.Context) error
 }
 
+type ArticleCheckEventProducer interface {
+	PublishArticleCheck(ctx context.Context, event ArticleCheckEvent) error
+}
+
+type ArticleCheckEventConsumer interface {
+	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
+}
+
 // EventType define supported event types
 type EventType string
 

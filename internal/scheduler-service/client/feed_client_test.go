@@ -13,13 +13,16 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/Fancu1/phoenix-rss/internal/scheduler-service/models"
 	feedpb "github.com/Fancu1/phoenix-rss/protos/gen/go/feed"
 )
 
 // MockFeedServiceClient implements a mock gRPC client with correct signatures
 type MockFeedServiceClient struct {
-	feeds []*feedpb.Feed
-	err   error
+	feeds     []*feedpb.Feed
+	articles  []*feedpb.ArticleToCheck
+	nextToken string
+	err       error
 }
 
 func (m *MockFeedServiceClient) ListAllFeeds(ctx context.Context, req *feedpb.ListAllFeedsRequest, opts ...grpc.CallOption) (*feedpb.ListAllFeedsResponse, error) {
@@ -27,6 +30,13 @@ func (m *MockFeedServiceClient) ListAllFeeds(ctx context.Context, req *feedpb.Li
 		return nil, m.err
 	}
 	return &feedpb.ListAllFeedsResponse{Feeds: m.feeds}, nil
+}
+
+func (m *MockFeedServiceClient) ListArticlesToCheck(ctx context.Context, req *feedpb.ListArticlesToCheckRequest, opts ...grpc.CallOption) (*feedpb.ListArticlesToCheckResponse, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &feedpb.ListArticlesToCheckResponse{Items: m.articles, NextPageToken: m.nextToken}, nil
 }
 
 func (m *MockFeedServiceClient) SubscribeToFeed(ctx context.Context, req *feedpb.SubscribeToFeedRequest, opts ...grpc.CallOption) (*feedpb.SubscribeToFeedResponse, error) {
@@ -149,4 +159,74 @@ func TestFeedServiceClient_GetAllFeeds_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, feeds)
 	assert.Contains(t, err.Error(), "failed to list all feeds")
+}
+
+func TestFeedServiceClient_ListArticlesToCheck_Success(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	articles := []*feedpb.ArticleToCheck{
+		{
+			ArticleId:        1,
+			FeedId:           10,
+			Url:              "https://example.com/article-1",
+			PrevEtag:         "etag-1",
+			PrevLastModified: "2024-01-01T00:00:00Z",
+		},
+		{
+			ArticleId: 2,
+			FeedId:    11,
+			Url:       "https://example.com/article-2",
+		},
+	}
+
+	mockClient := &MockFeedServiceClient{articles: articles, nextToken: "next"}
+	client := &FeedServiceClient{client: mockClient, logger: logger}
+
+	ctx := context.Background()
+	window := models.ArticleCheckWindow{
+		PublishedSince:    time.Now().Add(-24 * time.Hour),
+		LastCheckedBefore: time.Now().Add(-1 * time.Hour),
+	}
+
+	page, err := client.ListArticlesToCheck(ctx, window, 10, "")
+
+	require.NoError(t, err)
+	require.NotNil(t, page)
+	assert.Len(t, page.Items, 2)
+	assert.Equal(t, "next", page.NextPageToken)
+	assert.Equal(t, uint(1), page.Items[0].ArticleID)
+	assert.Equal(t, "etag-1", page.Items[0].PrevETag)
+}
+
+func TestFeedServiceClient_ListArticlesToCheck_Error(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	mockClient := &MockFeedServiceClient{
+		err: status.Error(codes.Internal, "boom"),
+	}
+	client := &FeedServiceClient{client: mockClient, logger: logger}
+
+	ctx := context.Background()
+	window := models.ArticleCheckWindow{PublishedSince: time.Now(), LastCheckedBefore: time.Now()}
+
+	page, err := client.ListArticlesToCheck(ctx, window, 5, "token")
+
+	require.Error(t, err)
+	assert.Nil(t, page)
+	assert.Contains(t, err.Error(), "failed to list articles to check")
+}
+
+func TestFeedServiceClient_ListArticlesToCheck_InvalidPageSize(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	mockClient := &MockFeedServiceClient{}
+	client := &FeedServiceClient{client: mockClient, logger: logger}
+
+	ctx := context.Background()
+	window := models.ArticleCheckWindow{PublishedSince: time.Now(), LastCheckedBefore: time.Now()}
+
+	page, err := client.ListArticlesToCheck(ctx, window, 0, "")
+
+	require.Error(t, err)
+	assert.Nil(t, page)
+	assert.Contains(t, err.Error(), "page size must be positive")
 }

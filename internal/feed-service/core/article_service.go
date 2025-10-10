@@ -2,10 +2,13 @@ package core
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	htmlstd "html"
 	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -24,6 +27,7 @@ type ArticleServiceInterface interface {
 	ListArticlesByFeedID(ctx context.Context, userID, feedID uint) ([]*models.Article, error)
 	GetArticleByID(ctx context.Context, userID, articleID uint) (*models.Article, error)
 	HandleArticleProcessed(ctx context.Context, event *article_eventspb.ArticleProcessedEvent) error
+	ListArticlesToCheck(ctx context.Context, publishedSince, lastCheckedBefore time.Time, pageSize int, pageToken string) ([]repository.ArticleCheckCandidate, string, error)
 }
 
 type ArticleService struct {
@@ -164,6 +168,64 @@ func (s *ArticleService) FetchAndSaveArticles(ctx context.Context, feedID uint) 
 	}
 
 	return articles, nil
+}
+
+func (s *ArticleService) ListArticlesToCheck(ctx context.Context, publishedSince, lastCheckedBefore time.Time, pageSize int, pageToken string) ([]repository.ArticleCheckCandidate, string, error) {
+	log := logger.FromContext(ctx)
+
+	if pageSize <= 0 {
+		return nil, "", fmt.Errorf("pageSize must be greater than zero")
+	}
+
+	var cursor *repository.ArticleCheckCursor
+	if strings.TrimSpace(pageToken) != "" {
+		parsed, err := decodeArticleCursor(pageToken)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid page token: %w", err)
+		}
+		cursor = parsed
+	}
+
+	items, nextCursor, err := s.articleRepo.ListArticlesToCheck(ctx, publishedSince, lastCheckedBefore, pageSize, cursor)
+	if err != nil {
+		log.Error("failed to list articles to check",
+			"error", err,
+			"published_since", publishedSince,
+			"last_checked_before", lastCheckedBefore,
+		)
+		return nil, "", ierr.NewDatabaseError(fmt.Errorf("list articles to check failed: %w", err))
+	}
+
+	if nextCursor == nil {
+		return items, "", nil
+	}
+
+	return items, encodeArticleCursor(*nextCursor), nil
+}
+
+func encodeArticleCursor(cursor repository.ArticleCheckCursor) string {
+	payload := fmt.Sprintf("%s|%d", cursor.PublishedAt.Format(time.RFC3339Nano), cursor.ArticleID)
+	return base64.StdEncoding.EncodeToString([]byte(payload))
+}
+
+func decodeArticleCursor(token string) (*repository.ArticleCheckCursor, error) {
+	decoded, err := base64.StdEncoding.DecodeString(token)
+	if err != nil {
+		return nil, err
+	}
+	parts := strings.Split(string(decoded), "|")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("unexpected token format")
+	}
+	publishedAt, err := time.Parse(time.RFC3339Nano, parts[0])
+	if err != nil {
+		return nil, fmt.Errorf("invalid published_at in token: %w", err)
+	}
+	var articleID uint64
+	if articleID, err = strconv.ParseUint(parts[1], 10, 64); err != nil {
+		return nil, fmt.Errorf("invalid article id in token: %w", err)
+	}
+	return &repository.ArticleCheckCursor{PublishedAt: publishedAt, ArticleID: uint(articleID)}, nil
 }
 
 func (s *ArticleService) ListArticlesByFeedID(ctx context.Context, userID, feedID uint) ([]*models.Article, error) {

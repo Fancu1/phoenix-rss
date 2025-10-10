@@ -50,10 +50,29 @@ func main() {
 	})
 	defer producer.Close()
 
+	articleCheckProducer := events.NewKafkaArticleCheckProducer(log, events.KafkaConfig{
+		Brokers: cfg.Kafka.Brokers,
+		Topic:   cfg.Kafka.ArticleCheck.Topic,
+	})
+	defer articleCheckProducer.Close()
+
 	// Parse batch delay duration
 	batchDelay, err := time.ParseDuration(cfg.SchedulerService.BatchDelay)
 	if err != nil {
 		log.Error("failed to parse batch delay", "batch_delay", cfg.SchedulerService.BatchDelay, "error", err)
+		os.Exit(1)
+	}
+
+	minCheckInterval, err := time.ParseDuration(cfg.SchedulerService.ArticleCheck.MinCheckInterval)
+	if err != nil {
+		log.Error("failed to parse article check min interval", "value", cfg.SchedulerService.ArticleCheck.MinCheckInterval, "error", err)
+		os.Exit(1)
+	}
+
+	articleWindow := time.Duration(cfg.SchedulerService.ArticleCheck.WindowDays) * 24 * time.Hour
+	articlePageSize := cfg.SchedulerService.ArticleCheck.PageSize
+	if articlePageSize <= 0 {
+		log.Error("invalid article check page size", "value", articlePageSize)
 		os.Exit(1)
 	}
 
@@ -62,10 +81,15 @@ func main() {
 		log,
 		feedClient,
 		producer,
+		articleCheckProducer,
 		cfg.SchedulerService.Schedule,
 		cfg.SchedulerService.BatchSize,
 		batchDelay,
 		cfg.SchedulerService.MaxConcurrent,
+		cfg.SchedulerService.ArticleCheck.Cron,
+		articleWindow,
+		minCheckInterval,
+		articlePageSize,
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())

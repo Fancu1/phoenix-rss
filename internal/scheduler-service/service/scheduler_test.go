@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/scheduler-service/models"
 )
 
@@ -23,6 +24,15 @@ func (m *MockFeedClient) GetAllFeeds(ctx context.Context) ([]*models.Feed, error
 	return args.Get(0).([]*models.Feed), args.Error(1)
 }
 
+func (m *MockFeedClient) ListArticlesToCheck(ctx context.Context, timeRange models.ArticleCheckWindow, pageSize int, pageToken string) (*models.ArticleCheckPage, error) {
+	args := m.Called(ctx, timeRange, pageSize, pageToken)
+	var page *models.ArticleCheckPage
+	if v := args.Get(0); v != nil {
+		page = v.(*models.ArticleCheckPage)
+	}
+	return page, args.Error(1)
+}
+
 // MockProducer implements a mock Kafka producer
 type MockProducer struct {
 	mock.Mock
@@ -33,12 +43,21 @@ func (m *MockProducer) PublishFeedFetch(ctx context.Context, feedID uint) error 
 	return args.Error(0)
 }
 
+type MockArticleCheckProducer struct {
+	mock.Mock
+}
+
+func (m *MockArticleCheckProducer) PublishArticleCheck(ctx context.Context, event events.ArticleCheckEvent) error {
+	args := m.Called(ctx, event)
+	return args.Error(0)
+}
+
 func TestScheduler_StartStop(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	mockClient := new(MockFeedClient)
 	mockProducer := new(MockProducer)
 
-	scheduler := NewScheduler(logger, mockClient, mockProducer, "@every 1h", 10, 1*time.Second, 2)
+	scheduler := NewScheduler(logger, mockClient, mockProducer, nil, "@every 1h", 10, 1*time.Second, 2, "", 24*time.Hour, 4*time.Hour, 100)
 
 	// Test initial state
 	assert.False(t, scheduler.IsRunning())
@@ -72,7 +91,7 @@ func TestScheduler_TriggerFeedFetches_Success(t *testing.T) {
 	mockClient := new(MockFeedClient)
 	mockProducer := new(MockProducer)
 
-	scheduler := NewScheduler(logger, mockClient, mockProducer, "@every 1h", 10, 1*time.Second, 2)
+	scheduler := NewScheduler(logger, mockClient, mockProducer, nil, "@every 1h", 10, 1*time.Second, 2, "", 24*time.Hour, 4*time.Hour, 100)
 
 	// Setup mock expectations
 	feeds := []*models.Feed{
@@ -98,7 +117,7 @@ func TestScheduler_TriggerFeedFetches_NoFeeds(t *testing.T) {
 	mockClient := new(MockFeedClient)
 	mockProducer := new(MockProducer)
 
-	scheduler := NewScheduler(logger, mockClient, mockProducer, "@every 1h", 10, 1*time.Second, 2)
+	scheduler := NewScheduler(logger, mockClient, mockProducer, nil, "@every 1h", 10, 1*time.Second, 2, "", 24*time.Hour, 4*time.Hour, 100)
 
 	// Setup mock expectations
 	feeds := []*models.Feed{}
@@ -120,7 +139,7 @@ func TestScheduler_TriggerFeedFetches_GetFeedsError(t *testing.T) {
 	mockClient := new(MockFeedClient)
 	mockProducer := new(MockProducer)
 
-	scheduler := NewScheduler(logger, mockClient, mockProducer, "@every 1h", 10, 1*time.Second, 2)
+	scheduler := NewScheduler(logger, mockClient, mockProducer, nil, "@every 1h", 10, 1*time.Second, 2, "", 24*time.Hour, 4*time.Hour, 100)
 
 	// Setup mock expectations
 	ctx := context.Background()
@@ -140,7 +159,7 @@ func TestScheduler_TriggerFeedFetches_PartialFailure(t *testing.T) {
 	mockClient := new(MockFeedClient)
 	mockProducer := new(MockProducer)
 
-	scheduler := NewScheduler(logger, mockClient, mockProducer, "@every 1h", 10, 1*time.Second, 2)
+	scheduler := NewScheduler(logger, mockClient, mockProducer, nil, "@every 1h", 10, 1*time.Second, 2, "", 24*time.Hour, 4*time.Hour, 100)
 
 	// Setup mock expectations
 	feeds := []*models.Feed{
@@ -159,4 +178,60 @@ func TestScheduler_TriggerFeedFetches_PartialFailure(t *testing.T) {
 	// Verify expectations
 	mockClient.AssertExpectations(t)
 	mockProducer.AssertExpectations(t)
+}
+
+func TestScheduler_TriggerArticleChecks_Success(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	mockClient := new(MockFeedClient)
+	mockProducer := new(MockProducer)
+	mockArticleProducer := new(MockArticleCheckProducer)
+
+	articles := &models.ArticleCheckPage{
+		Items: []*models.ArticleToCheck{
+			{ArticleID: 1, FeedID: 2, URL: "https://example.com/a1", PrevETag: "etag"},
+			{ArticleID: 2, FeedID: 3, URL: "https://example.com/a2"},
+		},
+	}
+
+	scheduler := NewScheduler(logger, mockClient, mockProducer, mockArticleProducer, "@every 1h", 10, 1*time.Second, 2, "0 */2 * * * *", 7*24*time.Hour, 4*time.Hour, 50)
+
+	ctx := context.Background()
+	mockClient.
+		On("ListArticlesToCheck", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("models.ArticleCheckWindow"), 50, "").
+		Return(articles, nil)
+
+	mockArticleProducer.
+		On("PublishArticleCheck", mock.AnythingOfType("*context.valueCtx"), mock.MatchedBy(func(evt events.ArticleCheckEvent) bool {
+			return evt.ArticleID == 1 && evt.URL == "https://example.com/a1"
+		})).
+		Return(nil)
+	mockArticleProducer.
+		On("PublishArticleCheck", mock.AnythingOfType("*context.valueCtx"), mock.MatchedBy(func(evt events.ArticleCheckEvent) bool {
+			return evt.ArticleID == 2 && evt.URL == "https://example.com/a2"
+		})).
+		Return(nil)
+
+	scheduler.triggerArticleChecks(ctx)
+
+	mockClient.AssertExpectations(t)
+	mockArticleProducer.AssertExpectations(t)
+}
+
+func TestScheduler_TriggerArticleChecks_Error(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	mockClient := new(MockFeedClient)
+	mockProducer := new(MockProducer)
+	mockArticleProducer := new(MockArticleCheckProducer)
+
+	scheduler := NewScheduler(logger, mockClient, mockProducer, mockArticleProducer, "@every 1h", 10, 1*time.Second, 2, "0 */2 * * * *", 7*24*time.Hour, 4*time.Hour, 50)
+
+	ctx := context.Background()
+	mockClient.
+		On("ListArticlesToCheck", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("models.ArticleCheckWindow"), 50, "").
+		Return((*models.ArticleCheckPage)(nil), assert.AnError)
+
+	scheduler.triggerArticleChecks(ctx)
+
+	mockClient.AssertExpectations(t)
+	mockArticleProducer.AssertNotCalled(t, "PublishArticleCheck", mock.Anything, mock.Anything)
 }

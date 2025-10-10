@@ -30,6 +30,29 @@ message Article {
   string summary = 12;
   string processing_model = 13;
   string processed_at = 14;
+  string last_checked_at = 15;
+  string http_etag = 16;
+  string http_last_modified = 17;
+}
+
+message ListArticlesToCheckRequest {
+  string published_since = 1;
+  string last_checked_before = 2;
+  uint32 page_size = 3;
+  string page_token = 4;
+}
+
+message ArticleToCheck {
+  uint64 article_id = 1;
+  uint64 feed_id = 2;
+  string url = 3;
+  string prev_etag = 4;
+  string prev_last_modified = 5;
+}
+
+message ListArticlesToCheckResponse {
+  repeated ArticleToCheck items = 1;
+  string next_page_token = 2;
 }
 
 // Subscribe to feed requests and responses
@@ -136,4 +159,7 @@ service FeedService {
   
   // Check if user is subscribed to a feed
   rpc CheckSubscription(CheckSubscriptionRequest) returns (CheckSubscriptionResponse);
+
+  // List articles that require background update checks
+  rpc ListArticlesToCheck(ListArticlesToCheckRequest) returns (ListArticlesToCheckResponse);
 }

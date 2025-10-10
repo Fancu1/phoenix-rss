@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"google.golang.org/grpc"
 
@@ -49,4 +50,48 @@ func (c *FeedServiceClient) GetAllFeeds(ctx context.Context) ([]*models.Feed, er
 
 	log.Debug("successfully fetched feeds", "count", len(feeds))
 	return feeds, nil
+}
+
+func (c *FeedServiceClient) ListArticlesToCheck(ctx context.Context, timeRange models.ArticleCheckWindow, pageSize int, pageToken string) (*models.ArticleCheckPage, error) {
+	log := logger.FromContext(ctx)
+	log.Debug("fetching articles to check",
+		"published_since", timeRange.PublishedSince,
+		"last_checked_before", timeRange.LastCheckedBefore,
+		"page_size", pageSize,
+	)
+
+	if pageSize <= 0 {
+		return nil, fmt.Errorf("page size must be positive")
+	}
+
+	req := &feedpb.ListArticlesToCheckRequest{
+		PublishedSince:    timeRange.PublishedSince.UTC().Format(time.RFC3339),
+		LastCheckedBefore: timeRange.LastCheckedBefore.UTC().Format(time.RFC3339),
+		PageSize:          uint32(pageSize),
+		PageToken:         pageToken,
+	}
+
+	resp, err := c.client.ListArticlesToCheck(ctx, req)
+	if err != nil {
+		log.Error("failed to list articles to check", "error", err)
+		return nil, fmt.Errorf("failed to list articles to check: %w", err)
+	}
+
+	items := make([]*models.ArticleToCheck, len(resp.Items))
+	for i, item := range resp.Items {
+		items[i] = &models.ArticleToCheck{
+			ArticleID:        uint(item.ArticleId),
+			FeedID:           uint(item.FeedId),
+			URL:              item.Url,
+			PrevETag:         item.PrevEtag,
+			PrevLastModified: item.PrevLastModified,
+		}
+	}
+
+	log.Debug("received articles to check", "count", len(items), "has_next", resp.NextPageToken != "")
+
+	return &models.ArticleCheckPage{
+		Items:         items,
+		NextPageToken: resp.NextPageToken,
+	}, nil
 }

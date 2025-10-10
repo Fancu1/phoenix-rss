@@ -266,6 +266,69 @@ func (h *FeedServiceHandler) CheckSubscription(ctx context.Context, req *feedpb.
 	}, nil
 }
 
+func (h *FeedServiceHandler) ListArticlesToCheck(ctx context.Context, req *feedpb.ListArticlesToCheckRequest) (*feedpb.ListArticlesToCheckResponse, error) {
+	log := logger.FromContext(ctx)
+	log.Info("gRPC: ListArticlesToCheck",
+		"published_since", req.PublishedSince,
+		"last_checked_before", req.LastCheckedBefore,
+		"page_size", req.PageSize,
+	)
+
+	if req.PublishedSince == "" {
+		return nil, status.Error(codes.InvalidArgument, "published_since is required")
+	}
+	if req.LastCheckedBefore == "" {
+		return nil, status.Error(codes.InvalidArgument, "last_checked_before is required")
+	}
+
+	publishedSince, err := time.Parse(time.RFC3339, req.PublishedSince)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid published_since timestamp")
+	}
+	lastCheckedBefore, err := time.Parse(time.RFC3339, req.LastCheckedBefore)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid last_checked_before timestamp")
+	}
+
+	pageSize := int(req.PageSize)
+	if pageSize <= 0 {
+		pageSize = 500
+	} else if pageSize > 2000 {
+		pageSize = 2000
+	}
+
+	items, nextToken, svcErr := h.articleService.ListArticlesToCheck(ctx, publishedSince, lastCheckedBefore, pageSize, req.PageToken)
+	if svcErr != nil {
+		log.Error("failed to list articles to check", "error", svcErr)
+		return nil, h.mapErrorToGRPC(svcErr)
+	}
+
+	pbItems := make([]*feedpb.ArticleToCheck, len(items))
+	for i, item := range items {
+		pbItems[i] = &feedpb.ArticleToCheck{
+			ArticleId: uint64(item.ID),
+			FeedId:    uint64(item.FeedID),
+			Url:       item.URL,
+		}
+		if item.HTTPETag != nil {
+			pbItems[i].PrevEtag = *item.HTTPETag
+		}
+		if item.HTTPLastModified != nil {
+			pbItems[i].PrevLastModified = *item.HTTPLastModified
+		}
+	}
+
+	log.Info("successfully listed articles to check",
+		"count", len(pbItems),
+		"has_next", nextToken != "",
+	)
+
+	return &feedpb.ListArticlesToCheckResponse{
+		Items:         pbItems,
+		NextPageToken: nextToken,
+	}, nil
+}
+
 // mapErrorToGRPC map internal errors to appropriate gRPC status codes
 func (h *FeedServiceHandler) mapErrorToGRPC(err error) error {
 	if err == ierr.ErrNotSubscribed {
@@ -312,6 +375,15 @@ func toProtoArticle(article *models.Article) *feedpb.Article {
 	}
 	if article.ProcessedAt != nil {
 		pb.ProcessedAt = article.ProcessedAt.Format(time.RFC3339)
+	}
+	if article.LastCheckedAt != nil {
+		pb.LastCheckedAt = article.LastCheckedAt.Format(time.RFC3339)
+	}
+	if article.HTTPETag != nil {
+		pb.HttpEtag = *article.HTTPETag
+	}
+	if article.HTTPLastModified != nil {
+		pb.HttpLastModified = *article.HTTPLastModified
 	}
 
 	return pb

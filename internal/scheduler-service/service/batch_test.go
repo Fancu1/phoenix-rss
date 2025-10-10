@@ -18,7 +18,7 @@ func TestScheduler_CreateBatches(t *testing.T) {
 	mockClient := new(MockFeedClient)
 	mockProducer := new(MockProducer)
 
-	scheduler := NewScheduler(logger, mockClient, mockProducer, "@every 1h", 3, 1*time.Second, 2)
+	scheduler := NewScheduler(logger, mockClient, mockProducer, nil, "@every 1h", 3, 1*time.Second, 2, "", 24*time.Hour, 4*time.Hour, 100)
 
 	// Test with 7 feeds and batch size of 3
 	feeds := []*models.Feed{
@@ -52,7 +52,7 @@ func TestScheduler_CreateBatches_EmptyFeeds(t *testing.T) {
 	mockClient := new(MockFeedClient)
 	mockProducer := new(MockProducer)
 
-	scheduler := NewScheduler(logger, mockClient, mockProducer, "@every 1h", 10, 1*time.Second, 2)
+	scheduler := NewScheduler(logger, mockClient, mockProducer, nil, "@every 1h", 10, 1*time.Second, 2, "", 24*time.Hour, 4*time.Hour, 100)
 
 	feeds := []*models.Feed{}
 	batches := scheduler.createBatches(feeds)
@@ -65,7 +65,7 @@ func TestScheduler_ProcessBatch(t *testing.T) {
 	mockClient := new(MockFeedClient)
 	mockProducer := new(MockProducer)
 
-	scheduler := NewScheduler(logger, mockClient, mockProducer, "@every 1h", 10, 1*time.Second, 2)
+	scheduler := NewScheduler(logger, mockClient, mockProducer, nil, "@every 1h", 10, 1*time.Second, 2, "", 24*time.Hour, 4*time.Hour, 100)
 
 	// Setup mock expectations
 	feeds := []*models.Feed{
@@ -93,7 +93,7 @@ func TestScheduler_ProcessBatch_WithFailures(t *testing.T) {
 	mockClient := new(MockFeedClient)
 	mockProducer := new(MockProducer)
 
-	scheduler := NewScheduler(logger, mockClient, mockProducer, "@every 1h", 10, 1*time.Second, 2)
+	scheduler := NewScheduler(logger, mockClient, mockProducer, nil, "@every 1h", 10, 1*time.Second, 2, "", 24*time.Hour, 4*time.Hour, 100)
 
 	// Setup mock expectations with one failure
 	feeds := []*models.Feed{
@@ -122,7 +122,7 @@ func TestScheduler_BatchProcessing_Integration(t *testing.T) {
 	mockProducer := new(MockProducer)
 
 	// Use small batch size and delay for testing
-	scheduler := NewScheduler(logger, mockClient, mockProducer, "@every 1h", 2, 10*time.Millisecond, 1)
+	scheduler := NewScheduler(logger, mockClient, mockProducer, nil, "@every 1h", 2, 10*time.Millisecond, 1, "", 24*time.Hour, 4*time.Hour, 100)
 
 	// Setup mock expectations
 	feeds := []*models.Feed{
