@@ -64,7 +64,7 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 			)
 
 			// Return structured error response
-			c.JSON(appErr.HTTPStatus, ErrorResponse{
+			c.AbortWithStatusJSON(appErr.HTTPStatus, ErrorResponse{
 				Code:    appErr.Code,
 				Message: appErr.Message,
 			})
@@ -77,14 +77,11 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 			)
 
 			// Return generic internal server error (don't expose internal details)
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
+			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse{
 				Code:    ErrInternalServer.Code,
 				Message: ErrInternalServer.Message,
 			})
 		}
-
-		// Abort to prevent further processing
-		c.Abort()
 	}
 }
 

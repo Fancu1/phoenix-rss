@@ -7,6 +7,7 @@ A modern, AI-powered RSS aggregator built on a scalable microservice architectur
 -   **Microservice Architecture**: A suite of independent, single-responsibility services (API Gateway, User, Feed, AI, Scheduler) communicating over gRPC for high performance.
 -   **Integrated Web UI**: A fast, modern SvelteKit frontend is embedded directly into the API Gateway, delivering a complete application experience in a single, easy-to-deploy binary.
 -   **AI-Powered Content Processing**: Leverages Large Language Models via Kafka events to automatically process and summarize article content, enhancing discoverability.
+-   **Background Article Refresh**: Scheduler-driven article checks use conditional HTTP requests (ETag / Last-Modified) to refresh content only when sources change, respecting robots.txt and publishing work to Kafka for resilient processing.
 -   **Event-Driven Core**: Uses Kafka for asynchronous, decoupled communication between services, ensuring resilience and scalability.
 -   **Containerized & Production-Ready**: Fully containerized with Docker and orchestrated via Docker Compose, featuring healthchecks and a streamlined multi-stage build process.
 

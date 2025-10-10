@@ -53,6 +53,10 @@ vendor/
 /web/.env.*
 !/web/.env.example
 
+# Protos
+/protos/gen/
+/proto/gen/
+
 # service
 /ai-service
 /api-service
@@ -60,3 +64,7 @@ vendor/
 /scheduler-service
 /user-service
 /main
+
+# gpt-codex
+AGENTS.md
+

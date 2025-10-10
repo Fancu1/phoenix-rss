@@ -2,7 +2,6 @@ package interfaces
 
 import (
 	"context"
-	"time"
 
 	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/scheduler-service/models"

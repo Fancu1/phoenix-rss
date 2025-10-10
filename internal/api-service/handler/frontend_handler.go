@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"embed"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -17,7 +16,7 @@ type StaticFrontendHandler struct {
 }
 
 // NewStaticFrontendHandler create a new handler for the embedded frontend.
-func NewStaticFrontendHandler(staticFS embed.FS) (*StaticFrontendHandler, error) {
+func NewStaticFrontendHandler(staticFS fs.FS) (*StaticFrontendHandler, error) {
 	// Read index.html into memory once at startup.
 	indexHTML, err := fs.ReadFile(staticFS, "dist/index.html")
 	if err != nil {

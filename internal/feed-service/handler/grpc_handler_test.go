@@ -84,8 +84,8 @@ func TestListArticlesToCheck_Success(t *testing.T) {
 	mockArticles := new(mockArticleService)
 	h := NewFeedServiceHandler(slogDiscard(), noopFeedService{}, mockArticles, events.Producer(nil))
 
-	publishedSince := time.Now().Add(-24 * time.Hour).UTC()
-	lastCheckedBefore := time.Now().Add(-4 * time.Hour).UTC()
+	publishedSince := time.Now().Add(-24 * time.Hour).UTC().Truncate(time.Second)
+	lastCheckedBefore := time.Now().Add(-4 * time.Hour).UTC().Truncate(time.Second)
 
 	candidates := []repository.ArticleCheckCandidate{
 		{ID: 1, FeedID: 2, URL: "https://example.com", HTTPETag: strPtr("etag"), HTTPLastModified: strPtr("2024-01-01T00:00:00Z")},
@@ -123,8 +123,8 @@ func TestListArticlesToCheck_ServiceError(t *testing.T) {
 	mockArticles := new(mockArticleService)
 	h := NewFeedServiceHandler(slogDiscard(), noopFeedService{}, mockArticles, events.Producer(nil))
 
-	publishedSince := time.Now().Add(-24 * time.Hour).UTC()
-	lastCheckedBefore := time.Now().Add(-4 * time.Hour).UTC()
+	publishedSince := time.Now().Add(-24 * time.Hour).UTC().Truncate(time.Second)
+	lastCheckedBefore := time.Now().Add(-4 * time.Hour).UTC().Truncate(time.Second)
 
 	mockArticles.On("ListArticlesToCheck", mock.Anything, publishedSince, lastCheckedBefore, 500, "").Return(nil, "", ierr.NewDatabaseError(assert.AnError))
 

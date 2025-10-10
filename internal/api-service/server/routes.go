@@ -10,8 +10,8 @@ import (
 func (s *Server) setupRoutes() {
 	// Apply global middleware
 	s.engine.Use(handler.RequestIDMiddleware())
-	s.engine.Use(ierr.ErrorHandlerMiddleware())
 	s.engine.Use(gzip.Gzip(gzip.DefaultCompression))
+	s.engine.Use(ierr.ErrorHandlerMiddleware())
 
 	// Register frontend routes
 	s.frontendHandler.RegisterRoutes(s.engine)

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"embed"
+	"io/fs"
 	"log"
 	"log/slog"
 	"net"
@@ -98,7 +99,12 @@ func TestMain(m *testing.M) {
 	}
 
 	// Create server with gRPC clients
-	s, err := New(cfg, logger.New(slog.LevelDebug), feedService, articleService, userService, testStaticFS)
+	staticFS, err := fs.Sub(testStaticFS, "testdata")
+	if err != nil {
+		log.Fatalf("Failed to load test static assets: %v", err)
+	}
+
+	s, err := New(cfg, logger.New(slog.LevelDebug), feedService, articleService, userService, staticFS)
 	if err != nil {
 		log.Fatalf("Failed to create test server: %v", err)
 	}

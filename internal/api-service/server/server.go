@@ -1,8 +1,8 @@
 package server
 
 import (
-	"embed"
 	"fmt"
+	"io/fs"
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +23,7 @@ type Server struct {
 	frontendHandler *handler.StaticFrontendHandler
 }
 
-func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceInterface, articleService core.ArticleServiceInterface, userService core.UserServiceInterface, staticFS embed.FS) (*Server, error) {
+func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceInterface, articleService core.ArticleServiceInterface, userService core.UserServiceInterface, staticFS fs.FS) (*Server, error) {
 	feedHandler := handler.NewFeedHandler(feedService)
 	articleHandler := handler.NewArticleHandler(logger, articleService)
 	userHandler := handler.NewUserHandler(userService)

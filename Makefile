@@ -1,6 +1,10 @@
 SHELL := /bin/bash
 
-.PHONY: migrate-up migrate-down migrate-create build-api-service build-user-service build-feed-service build-scheduler-service build-ai-service build-all run-api-service run-user-service run-feed-service run-scheduler-service run-ai-service test infra-up infra-down
+# Ensure Go-installed binaries (protoc plugins) are on PATH
+GOBIN := $(shell go env GOPATH)/bin
+export PATH := $(GOBIN):$(PATH)
+
+.PHONY: migrate-up migrate-down migrate-create build-api-service build-user-service build-feed-service build-scheduler-service build-ai-service build-all run-api-service run-user-service run-feed-service run-scheduler-service run-ai-service test infra-up infra-down proto-tools generate
 
 migrate-up:
 	go run ./cmd/migrator up
@@ -70,4 +74,23 @@ infra-up:
 
 infra-down:
 	docker compose down
+
+
+# Proto tools and code generation
+proto-tools:
+	@command -v protoc >/dev/null 2>&1 || { echo "ERROR: protoc not found. Install it first (e.g., 'brew install protobuf')."; exit 1; }
+	@echo "--> Ensuring protoc Go plugins are installed..."
+	@GOBIN=$(GOBIN) go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2
+	@GOBIN=$(GOBIN) go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+
+generate: proto-tools
+	@echo "--> Generating Go code from proto files..."
+	@protoc -I proto \
+		--go_out=. --go_opt=module=github.com/Fancu1/phoenix-rss \
+		--go-grpc_out=. --go-grpc_opt=module=github.com/Fancu1/phoenix-rss \
+		proto/feed.proto proto/user.proto
+	@protoc -I proto \
+		--go_out=. \
+		proto/article_events.proto
+	@echo "--> Proto generation complete."
 
