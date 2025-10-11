@@ -3,6 +3,9 @@ package core
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,4 +88,45 @@ func TestGetArticleByID_NotFound(t *testing.T) {
 
 	_, err := service.GetArticleByID(context.Background(), 1, 123)
 	require.ErrorIs(t, err, ierr.ErrArticleNotFound)
+}
+
+func TestFetchAndSaveArticles_FeedTooLarge(t *testing.T) {
+	service, _, _, db := setupArticleService(t)
+
+	largeContent := strings.Repeat("A", int(maxFeedDownloadBytes)+1)
+
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/rss+xml")
+		fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Oversized Feed</title>
+    <link>%s</link>
+    <description>Feed with huge item</description>
+    <item>
+      <title>Huge Item</title>
+      <link>%s/article</link>
+      <description>%s</description>
+    </item>
+  </channel>
+</rss>`, server.URL, server.URL, largeContent)
+	}))
+	defer server.Close()
+
+	feed := &models.Feed{
+		Title:     "Big Feed",
+		URL:       server.URL,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(feed).Error)
+
+	_, err := service.FetchAndSaveArticles(context.Background(), feed.ID)
+	require.Error(t, err)
+	require.ErrorIs(t, err, errFeedBodyTooLarge)
+
+	var count int64
+	require.NoError(t, db.Model(&models.Article{}).Where("feed_id = ?", feed.ID).Count(&count).Error)
+	require.Zero(t, count)
 }

@@ -40,7 +40,7 @@ type ArticleService struct {
 
 func NewArticleService(feedRepo *repository.FeedRepository, articleRepo *repository.ArticleRepository, eventProducer events.ArticleEventProducer, logger *slog.Logger) *ArticleService {
 	return &ArticleService{
-		parser:        gofeed.NewParser(),
+		parser:        newFeedParser(),
 		feedRepo:      feedRepo,
 		articleRepo:   articleRepo,
 		eventProducer: eventProducer,
