@@ -4,6 +4,11 @@ SHELL := /bin/bash
 GOBIN := $(shell go env GOPATH)/bin
 export PATH := $(GOBIN):$(PATH)
 
+TEST_PACKAGES ?= ./...
+TEST_IMAGE ?= golang:1.23
+TEST_CONTAINER_NAME ?= phoenix-rss-test
+DOCKER_TEST_ARGS ?=
+
 .PHONY: migrate-up migrate-down migrate-create build-api-service build-user-service build-feed-service build-scheduler-service build-ai-service build-all run-api-service run-user-service run-feed-service run-scheduler-service run-ai-service test infra-up infra-down proto-tools generate
 
 migrate-up:
@@ -66,8 +71,10 @@ run-ai-service:
 	go run ./cmd/ai-service
 
 test:
-	go test ./... -coverprofile=coverage.out -covermode=atomic
-	go tool cover -func=coverage.out | tail -n 1
+	@TEST_IMAGE="$(TEST_IMAGE)" \
+		TEST_CONTAINER_NAME="$(TEST_CONTAINER_NAME)" \
+		DOCKER_TEST_ARGS="$(DOCKER_TEST_ARGS)" \
+		./scripts/test-in-container.sh $(TEST_PACKAGES)
 
 infra-up:
 	docker compose up -d postgres redis kafka
@@ -93,4 +100,3 @@ generate: proto-tools
 		--go_out=. \
 		proto/article_events.proto
 	@echo "--> Proto generation complete."
-
