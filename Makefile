@@ -8,6 +8,7 @@ TEST_PACKAGES ?= ./...
 TEST_IMAGE ?= golang:1.23
 TEST_CONTAINER_NAME ?= phoenix-rss-test
 DOCKER_TEST_ARGS ?=
+TEST_NETWORK ?= phoenix-rss-net
 
 .PHONY: migrate-up migrate-down migrate-create build-api-service build-user-service build-feed-service build-scheduler-service build-ai-service build-all run-api-service run-user-service run-feed-service run-scheduler-service run-ai-service test infra-up infra-down proto-tools generate
 
@@ -74,6 +75,7 @@ test:
 	@TEST_IMAGE="$(TEST_IMAGE)" \
 		TEST_CONTAINER_NAME="$(TEST_CONTAINER_NAME)" \
 		DOCKER_TEST_ARGS="$(DOCKER_TEST_ARGS)" \
+		TEST_NETWORK="$(TEST_NETWORK)" \
 		./scripts/test-in-container.sh $(TEST_PACKAGES)
 
 infra-up:

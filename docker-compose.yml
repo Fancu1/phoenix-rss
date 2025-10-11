@@ -2,6 +2,8 @@ services:
   postgres:
     image: postgres:14
     container_name: phoenix_postgres
+    networks:
+      - phoenix
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
@@ -19,6 +21,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: phoenix_redis
+    networks:
+      - phoenix
     ports:
       - "127.0.0.1:6379:6379"
     healthcheck:
@@ -30,6 +34,8 @@ services:
   kafka:
     image: bitnami/kafka:3.7
     container_name: phoenix_kafka
+    networks:
+      - phoenix
     ports:
       - "127.0.0.1:19092:19092"
     environment:
@@ -49,6 +55,8 @@ services:
   migrator:
     image: golang:1.23-alpine
     container_name: phoenix_migrator
+    networks:
+      - phoenix
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,6 +75,8 @@ services:
       dockerfile: Dockerfile
       target: api-service
     container_name: phoenix_api_service
+    networks:
+      - phoenix
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,6 +98,8 @@ services:
       dockerfile: Dockerfile
       target: user-service
     container_name: phoenix_user_service
+    networks:
+      - phoenix
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,6 +115,8 @@ services:
       dockerfile: Dockerfile
       target: feed-service
     container_name: phoenix_feed_service
+    networks:
+      - phoenix
     depends_on:
       postgres:
         condition: service_healthy
@@ -120,6 +134,8 @@ services:
       dockerfile: Dockerfile
       target: scheduler-service
     container_name: phoenix_scheduler
+    networks:
+      - phoenix
     depends_on:
       kafka:
         condition: service_started
@@ -135,6 +151,8 @@ services:
       dockerfile: Dockerfile
       target: ai-service
     container_name: phoenix_ai_service
+    networks:
+      - phoenix
     depends_on:
       kafka:
         condition: service_started
@@ -144,3 +162,8 @@ services:
 
 volumes:
   postgresql_data:
+
+networks:
+  phoenix:
+    name: phoenix-rss-net
+    driver: bridge

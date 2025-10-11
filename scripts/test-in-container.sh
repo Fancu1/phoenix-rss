@@ -12,6 +12,7 @@ fi
 TEST_IMAGE=${TEST_IMAGE:-golang:1.23}
 CONTAINER_NAME=${TEST_CONTAINER_NAME:-phoenix-rss-test}
 DOCKER_ARGS=${DOCKER_TEST_ARGS:-}
+TEST_NETWORK=${TEST_NETWORK:-phoenix-rss-net}
 
 RAW_ARGS=("$@")
 if [[ ${#RAW_ARGS[@]} -eq 0 ]]; then
@@ -25,12 +26,11 @@ GO_COMMAND+=" go test ${GO_TEST_ARGS}-count=1 -coverprofile=coverage.out -coverm
 GO_COMMAND+=" && go tool cover -func=coverage.out | tail -n 1"
 
 if [[ -z "$DOCKER_ARGS" ]]; then
-  PROJECT_NAME=${COMPOSE_PROJECT_NAME:-$(basename "$ROOT_DIR")}
-  DEFAULT_NETWORK="${PROJECT_NAME}_default"
-  if docker network inspect "$DEFAULT_NETWORK" >/dev/null 2>&1; then
-    DOCKER_ARGS="--network $DEFAULT_NETWORK"
+  if docker network inspect "$TEST_NETWORK" >/dev/null 2>&1; then
+    DOCKER_ARGS="--network $TEST_NETWORK"
   else
-    echo "warning: docker network '$DEFAULT_NETWORK' not found; tests may not reach compose services" >&2
+    echo "error: docker network '$TEST_NETWORK' not found. Start docker compose or set DOCKER_TEST_ARGS/TEST_NETWORK." >&2
+    exit 1
   fi
 fi
 
