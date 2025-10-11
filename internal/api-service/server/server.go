@@ -25,7 +25,7 @@ type Server struct {
 }
 
 func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceInterface, articleService core.ArticleServiceInterface, userService core.UserServiceInterface, redisClient *redis.Client, staticFS fs.FS) (*Server, error) {
-	feedHandler := handler.NewFeedHandler(feedService)
+	feedHandler := handler.NewFeedHandler(feedService, redisClient)
 	articleHandler := handler.NewArticleHandler(logger, articleService)
 	userHandler := handler.NewUserHandler(userService)
 	authMiddleware := handler.NewAuthMiddleware(userService, redisClient)
