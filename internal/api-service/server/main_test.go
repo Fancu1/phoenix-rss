@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 
@@ -104,7 +105,10 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Failed to load test static assets: %v", err)
 	}
 
-	s, err := New(cfg, logger.New(slog.LevelDebug), feedService, articleService, userService, staticFS)
+	redisClient := redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"})
+	defer redisClient.Close()
+
+	s, err := New(cfg, logger.New(slog.LevelDebug), feedService, articleService, userService, redisClient, staticFS)
 	if err != nil {
 		log.Fatalf("Failed to create test server: %v", err)
 	}

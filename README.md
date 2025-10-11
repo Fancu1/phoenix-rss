@@ -70,6 +70,10 @@ docker compose up --build -d
 
 The web application will be available at `http://localhost:8080`.
 
+### 2.1 Authentication Token Cache
+
+The API Gateway keeps a short-lived (5 minute) Redis cache of validated user tokens to reduce gRPC chatter with the user-service. By default it connects to `REDIS_ADDRESS` from your configuration/Docker Compose network. If Redis is unreachable the gateway falls back to direct validation—no manual action is needed, but expect higher latency until Redis is restored.
+
 ### 3. Stopping the Application
 
 ```bash

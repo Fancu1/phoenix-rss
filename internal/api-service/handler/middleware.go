@@ -1,14 +1,18 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
+	"github.com/Fancu1/phoenix-rss/internal/user-service/models"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
@@ -54,11 +58,27 @@ func GetRequestIDFromContext(c *gin.Context) (string, bool) {
 
 type AuthMiddleware struct {
 	userService core.UserServiceInterface
+	cache       redis.Cmdable
 }
 
-func NewAuthMiddleware(userService core.UserServiceInterface) *AuthMiddleware {
+type cachedUser struct {
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+}
+
+const (
+	tokenCacheKeyPrefix = "api:auth:token:"
+	tokenCacheTTL       = 5 * time.Minute
+)
+
+func cacheKeyForToken(token string) string {
+	return tokenCacheKeyPrefix + token
+}
+
+func NewAuthMiddleware(userService core.UserServiceInterface, cache redis.Cmdable) *AuthMiddleware {
 	return &AuthMiddleware{
 		userService: userService,
+		cache:       cache,
 	}
 }
 
@@ -81,6 +101,32 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		}
 
 		tokenString := tokenParts[1]
+
+		if m.cache != nil {
+			ctx := c.Request.Context()
+			cacheKey := cacheKeyForToken(tokenString)
+			if cachedValue, err := m.cache.Get(ctx, cacheKey).Result(); err == nil {
+				var payload cachedUser
+				if err := json.Unmarshal([]byte(cachedValue), &payload); err != nil {
+					logger.FromContext(ctx).Warn("failed to decode token cache entry", "error", err)
+				} else {
+					user := &models.User{
+						ID:       payload.ID,
+						Username: payload.Username,
+					}
+					c.Set("userID", user.ID)
+					c.Set("user", user)
+
+					ctxWithUser := logger.WithUserID(c.Request.Context(), user.ID)
+					c.Request = c.Request.WithContext(ctxWithUser)
+
+					c.Next()
+					return
+				}
+			} else if err != redis.Nil {
+				logger.FromContext(ctx).Warn("failed to fetch token cache entry", "error", err)
+			}
+		}
 
 		// Validate token
 		token, err := m.userService.ValidateToken(tokenString)
@@ -122,6 +168,20 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		// Also add user ID to request context for audit logging
 		ctx := logger.WithUserID(c.Request.Context(), userID)
 		c.Request = c.Request.WithContext(ctx)
+
+		if m.cache != nil {
+			cacheKey := cacheKeyForToken(tokenString)
+			payload := cachedUser{
+				ID:       user.ID,
+				Username: user.Username,
+			}
+
+			if encoded, err := json.Marshal(payload); err != nil {
+				logger.FromContext(ctx).Warn("failed to encode token cache entry", "error", err)
+			} else if err := m.cache.Set(c.Request.Context(), cacheKey, encoded, tokenCacheTTL).Err(); err != nil {
+				logger.FromContext(ctx).Warn("failed to store token cache entry", "error", err)
+			}
+		}
 
 		c.Next()
 	}

@@ -52,6 +52,7 @@ vendor/
 /web/.env
 /web/.env.*
 !/web/.env.example
+cmd/api-service/dist/
 
 # Protos
 /protos/gen/
@@ -67,4 +68,5 @@ vendor/
 
 # gpt-codex
 AGENTS.md
+
 

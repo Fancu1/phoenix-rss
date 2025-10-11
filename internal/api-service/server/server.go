@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/api-service/handler"
@@ -23,11 +24,11 @@ type Server struct {
 	frontendHandler *handler.StaticFrontendHandler
 }
 
-func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceInterface, articleService core.ArticleServiceInterface, userService core.UserServiceInterface, staticFS fs.FS) (*Server, error) {
+func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceInterface, articleService core.ArticleServiceInterface, userService core.UserServiceInterface, redisClient *redis.Client, staticFS fs.FS) (*Server, error) {
 	feedHandler := handler.NewFeedHandler(feedService)
 	articleHandler := handler.NewArticleHandler(logger, articleService)
 	userHandler := handler.NewUserHandler(userService)
-	authMiddleware := handler.NewAuthMiddleware(userService)
+	authMiddleware := handler.NewAuthMiddleware(userService, redisClient)
 	frontendHandler, err := handler.NewStaticFrontendHandler(staticFS)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create frontend handler: %w", err)
