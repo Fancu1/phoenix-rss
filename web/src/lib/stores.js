@@ -2,13 +2,28 @@
 import { browser } from '$app/environment';
 import { writable } from 'svelte/store';
 
-// Auth Store - manages authentication state
-function createAuthStore() {
-	const { subscribe, set, update } = writable({
+// Initialize auth state from localStorage synchronously at module load time
+function getInitialAuthState() {
+	if (browser) {
+		const token = localStorage.getItem('token');
+		if (token) {
+			return {
+				token,
+				user: null,
+				status: 'unknown' // Will be validated by first API call
+			};
+		}
+	}
+	return {
 		token: null,
 		user: null,
-		status: 'unknown' // 'unknown' | 'authenticated' | 'anonymous'
-	});
+		status: browser ? 'anonymous' : 'unknown' // Only anonymous if we're sure (browser loaded, no token)
+	};
+}
+
+// Auth Store - manages authentication state
+function createAuthStore() {
+	const { subscribe, set, update } = writable(getInitialAuthState());
 
 	return {
 		subscribe,
@@ -34,23 +49,10 @@ function createAuthStore() {
 				status: 'anonymous'
 			});
 		},
-		// Initialize from localStorage
+		// Initialize from localStorage (kept for backwards compatibility, but now a no-op)
 		init: () => {
-			if (browser) {
-				const token = localStorage.getItem('token');
-				if (token) {
-					update(state => ({
-						...state,
-						token,
-						status: 'unknown' // Will be validated by first API call
-					}));
-				} else {
-					update(state => ({
-						...state,
-						status: 'anonymous'
-					}));
-				}
-			}
+			// Auth state is now initialized synchronously at module load time
+			// This function is kept for backwards compatibility
 		},
 		// Set status (used after API validation)
 		setStatus: (status) => {

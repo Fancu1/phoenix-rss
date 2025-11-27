@@ -16,16 +16,21 @@
 	}
 
 	onMount(async () => {
-		// Wait for auth to be determined
-		if ($authStore.status === 'unknown') {
-			// Try to validate token with first API call
+		// Auth state is now initialized synchronously from localStorage at module load
+		// If we have a token (status === 'unknown'), validate it with an API call
+		if ($authStore.status === 'unknown' && $authStore.token) {
 			try {
 				await loadFeeds();
 				authStore.setStatus('authenticated');
 			} catch (error) {
-				authStore.logout();
-				goto('/login');
-				return;
+				// Only logout if it's an auth error (401)
+				if (error.status === 401) {
+					authStore.logout();
+					goto('/login');
+					return;
+				}
+				// For other errors, still mark as authenticated (token might be valid)
+				authStore.setStatus('authenticated');
 			}
 		} else if ($authStore.status === 'authenticated') {
 			await loadFeeds();

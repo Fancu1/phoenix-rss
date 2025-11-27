@@ -34,7 +34,23 @@
 	$: currentFeed = $feedsStore.find(feed => feed.id === feedId);
 
 	onMount(async () => {
-		if ($authStore.status === 'authenticated') {
+		// Auth state is now initialized synchronously from localStorage at module load
+		// If we have a token (status === 'unknown'), validate it and load data
+		if ($authStore.status === 'unknown' && $authStore.token) {
+			try {
+				await loadFeedsAndArticles();
+				authStore.setStatus('authenticated');
+			} catch (error) {
+				// Only logout if it's an auth error (401)
+				if (error.status === 401) {
+					authStore.logout();
+					goto('/login');
+					return;
+				}
+				// For other errors, still mark as authenticated
+				authStore.setStatus('authenticated');
+			}
+		} else if ($authStore.status === 'authenticated') {
 			await loadFeedsAndArticles();
 		}
 		loading = false;
