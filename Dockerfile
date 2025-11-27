@@ -52,9 +52,6 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=backend-builder /app/bin/scheduler-service /app/scheduler-service
 
-# Copy config files
-COPY --from=backend-builder /app/configs /app/configs
-
 # Change ownership to appuser
 RUN chown -R appuser:appgroup /app
 
@@ -82,9 +79,6 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=backend-builder /app/bin/ai-service /app/ai-service
 
-# Copy config files
-COPY --from=backend-builder /app/configs /app/configs
-
 # Change ownership to appuser
 RUN chown -R appuser:appgroup /app
 
@@ -109,7 +103,6 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 
 COPY --from=backend-builder /app/bin/api-service /app/api-service
-COPY --from=backend-builder /app/configs /app/configs
 
 RUN chown -R appuser:appgroup /app
 
@@ -130,7 +123,6 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 
 COPY --from=backend-builder /app/bin/feed-service /app/feed-service
-COPY --from=backend-builder /app/configs /app/configs
 
 RUN chown -R appuser:appgroup /app
 
@@ -151,7 +143,6 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 
 COPY --from=backend-builder /app/bin/user-service /app/user-service
-COPY --from=backend-builder /app/configs /app/configs
 
 RUN chown -R appuser:appgroup /app
 
