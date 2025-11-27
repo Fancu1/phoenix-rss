@@ -1,90 +1,55 @@
 package handler
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 
-	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/models"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
-// RequestIDMiddleware adds a unique request ID to each HTTP request
-// It checks for existing X-Request-ID header (from upstream services)
-// or generates a new UUID if none exists
+// RequestIDMiddleware propagates or generates a request ID for distributed tracing.
 func RequestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Check if request ID already exists in headers (from upstream)
 		requestID := c.GetHeader("X-Request-ID")
-
-		// Generate new UUID if no request ID provided
 		if requestID == "" {
 			requestID = uuid.New().String()[:8]
 		}
 
-		// Set request ID in Gin context for handlers to use
 		c.Set("request_id", requestID)
-
-		// Set request ID in response header for client/debugging
 		c.Header("X-Request-ID", requestID)
-
-		// Create enhanced context with request ID for downstream services
-		ctx := logger.WithRequestID(c.Request.Context(), requestID)
-		c.Request = c.Request.WithContext(ctx)
+		c.Request = c.Request.WithContext(logger.WithRequestID(c.Request.Context(), requestID))
 
 		c.Next()
 	}
 }
 
-// GetRequestIDFromContext extracts request ID from Gin context
-// This is a helper function for handlers that need the request ID
+// GetRequestIDFromContext retrieves the request ID from context.
 func GetRequestIDFromContext(c *gin.Context) (string, bool) {
-	requestID, exists := c.Get("request_id")
-	if !exists {
-		return "", false
+	if v, ok := c.Get("request_id"); ok {
+		return v.(string), true
 	}
-
-	id, ok := requestID.(string)
-	return id, ok
+	return "", false
 }
 
+// AuthMiddleware validates JWT tokens locally using shared secret.
 type AuthMiddleware struct {
-	userService core.UserServiceInterface
-	cache       redis.Cmdable
+	jwtSecret []byte
 }
 
-type cachedUser struct {
-	ID       uint   `json:"id"`
-	Username string `json:"username"`
+// NewAuthMiddleware creates an AuthMiddleware with the given secret.
+func NewAuthMiddleware(jwtSecret string) *AuthMiddleware {
+	return &AuthMiddleware{jwtSecret: []byte(jwtSecret)}
 }
 
-const (
-	tokenCacheKeyPrefix = "api:auth:token:"
-	tokenCacheTTL       = 5 * time.Minute
-)
-
-func cacheKeyForToken(token string) string {
-	return tokenCacheKeyPrefix + token
-}
-
-func NewAuthMiddleware(userService core.UserServiceInterface, cache redis.Cmdable) *AuthMiddleware {
-	return &AuthMiddleware{
-		userService: userService,
-		cache:       cache,
-	}
-}
-
+// RequireAuth enforces JWT authentication and populates user context.
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.Error(ierr.ErrUnauthorized.WithCause(fmt.Errorf("authorization header required")))
@@ -92,51 +57,30 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			return
 		}
 
-		// Check if it's a Bearer token
-		tokenParts := strings.SplitN(authHeader, " ", 2)
-		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || parts[0] != "Bearer" {
 			c.Error(ierr.ErrUnauthorized.WithCause(fmt.Errorf("invalid authorization header format")))
 			c.Abort()
 			return
 		}
 
-		tokenString := tokenParts[1]
-
-		if m.cache != nil {
-			ctx := c.Request.Context()
-			cacheKey := cacheKeyForToken(tokenString)
-			if cachedValue, err := m.cache.Get(ctx, cacheKey).Result(); err == nil {
-				var payload cachedUser
-				if err := json.Unmarshal([]byte(cachedValue), &payload); err != nil {
-					logger.FromContext(ctx).Warn("failed to decode token cache entry", "error", err)
-				} else {
-					user := &models.User{
-						ID:       payload.ID,
-						Username: payload.Username,
-					}
-					c.Set("userID", user.ID)
-					c.Set("user", user)
-
-					ctxWithUser := logger.WithUserID(c.Request.Context(), user.ID)
-					c.Request = c.Request.WithContext(ctxWithUser)
-
-					c.Next()
-					return
-				}
-			} else if err != redis.Nil {
-				logger.FromContext(ctx).Warn("failed to fetch token cache entry", "error", err)
+		token, err := jwt.Parse(parts[1], func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 			}
-		}
-
-		// Validate token
-		token, err := m.userService.ValidateToken(tokenString)
+			return m.jwtSecret, nil
+		})
 		if err != nil {
-			c.Error(err) // Already wrapped as AppError in ValidateToken
+			c.Error(ierr.ErrInvalidToken.WithCause(err))
+			c.Abort()
+			return
+		}
+		if !token.Valid {
+			c.Error(ierr.ErrInvalidToken.WithCause(fmt.Errorf("token validation failed")))
 			c.Abort()
 			return
 		}
 
-		// Extract user ID from token
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
 			c.Error(ierr.ErrInvalidToken.WithCause(fmt.Errorf("invalid token claims")))
@@ -144,56 +88,33 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			return
 		}
 
-		userIDFloat, ok := claims["user_id"].(float64)
+		userID, ok := claims["user_id"].(float64)
 		if !ok {
-			c.Error(ierr.ErrInvalidToken.WithCause(fmt.Errorf("invalid user_id in token")))
+			c.Error(ierr.ErrInvalidToken.WithCause(fmt.Errorf("missing user_id claim")))
 			c.Abort()
 			return
 		}
 
-		userID := uint(userIDFloat)
-
-		// Get user details
-		user, err := m.userService.GetUserFromToken(tokenString)
-		if err != nil {
-			c.Error(err) // Already wrapped as AppError in GetUserFromToken
+		username, ok := claims["username"].(string)
+		if !ok {
+			c.Error(ierr.ErrInvalidToken.WithCause(fmt.Errorf("missing username claim")))
 			c.Abort()
 			return
 		}
 
-		// Set user context in Gin
-		c.Set("userID", userID)
+		user := &models.User{ID: uint(userID), Username: username}
+		c.Set("userID", user.ID)
 		c.Set("user", user)
-
-		// Also add user ID to request context for audit logging
-		ctx := logger.WithUserID(c.Request.Context(), userID)
-		c.Request = c.Request.WithContext(ctx)
-
-		if m.cache != nil {
-			cacheKey := cacheKeyForToken(tokenString)
-			payload := cachedUser{
-				ID:       user.ID,
-				Username: user.Username,
-			}
-
-			if encoded, err := json.Marshal(payload); err != nil {
-				logger.FromContext(ctx).Warn("failed to encode token cache entry", "error", err)
-			} else if err := m.cache.Set(c.Request.Context(), cacheKey, encoded, tokenCacheTTL).Err(); err != nil {
-				logger.FromContext(ctx).Warn("failed to store token cache entry", "error", err)
-			}
-		}
+		c.Request = c.Request.WithContext(logger.WithUserID(c.Request.Context(), user.ID))
 
 		c.Next()
 	}
 }
 
-// Helper function to get user ID from context
+// GetUserIDFromContext retrieves the authenticated user ID from context.
 func GetUserIDFromContext(c *gin.Context) (uint, bool) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		return 0, false
+	if v, ok := c.Get("userID"); ok {
+		return v.(uint), true
 	}
-
-	id, ok := userID.(uint)
-	return id, ok
+	return 0, false
 }

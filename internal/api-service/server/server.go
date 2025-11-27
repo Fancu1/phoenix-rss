@@ -28,7 +28,7 @@ func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceIn
 	feedHandler := handler.NewFeedHandler(feedService, redisClient)
 	articleHandler := handler.NewArticleHandler(logger, articleService)
 	userHandler := handler.NewUserHandler(userService)
-	authMiddleware := handler.NewAuthMiddleware(userService, redisClient)
+	authMiddleware := handler.NewAuthMiddleware(cfg.Auth.JWTSecret)
 	frontendHandler, err := handler.NewStaticFrontendHandler(staticFS)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create frontend handler: %w", err)

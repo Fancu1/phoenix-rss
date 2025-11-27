@@ -1,126 +1,43 @@
 package handler
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
-	miniredis "github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Fancu1/phoenix-rss/internal/user-service/models"
 )
 
-type stubUserService struct {
-	validateTokenFn    func(tokenString string) (*jwt.Token, error)
-	getUserFromTokenFn func(tokenString string) (*models.User, error)
+const testJWTSecret = "test-secret-key"
 
-	validateCalls int
-	getUserCalls  int
+func generateTestToken(t *testing.T, userID uint, username string, exp time.Time) string {
+	t.Helper()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id":  float64(userID),
+		"username": username,
+		"exp":      exp.Unix(),
+		"iat":      time.Now().Unix(),
+	})
+	signed, err := token.SignedString([]byte(testJWTSecret))
+	require.NoError(t, err)
+	return signed
 }
 
-func (s *stubUserService) Register(username, password string) (*models.User, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (s *stubUserService) Login(username, password string) (string, error) {
-	return "", errors.New("not implemented")
-}
-
-func (s *stubUserService) ValidateToken(tokenString string) (*jwt.Token, error) {
-	s.validateCalls++
-	return s.validateTokenFn(tokenString)
-}
-
-func (s *stubUserService) GetUserFromToken(tokenString string) (*models.User, error) {
-	s.getUserCalls++
-	return s.getUserFromTokenFn(tokenString)
-}
-
-func newStubUserService(userID uint, username string) *stubUserService {
-	return &stubUserService{
-		validateTokenFn: func(tokenString string) (*jwt.Token, error) {
-			return &jwt.Token{
-				Claims: jwt.MapClaims{
-					"user_id": float64(userID),
-				},
-				Valid: true,
-			}, nil
-		},
-		getUserFromTokenFn: func(tokenString string) (*models.User, error) {
-			return &models.User{
-				ID:       userID,
-				Username: username,
-			}, nil
-		},
-	}
-}
-
-func TestAuthMiddleware_CacheHit(t *testing.T) {
+func TestAuthMiddleware_ValidToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-	defer mr.Close()
-
-	redisClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer redisClient.Close()
-
-	const token = "cached-token"
-	payload := cachedUser{ID: 101, Username: "cached-user"}
-	encoded, err := json.Marshal(payload)
-	require.NoError(t, err)
-	require.NoError(t, redisClient.Set(context.Background(), cacheKeyForToken(token), encoded, tokenCacheTTL).Err())
-
-	userSvc := newStubUserService(999, "should-not-be-used")
-	middleware := NewAuthMiddleware(userSvc, redisClient)
-
-	w := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(w)
-	req, _ := http.NewRequest(http.MethodGet, "/feeds", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	ctx.Request = req
-
-	middleware.RequireAuth()(ctx)
-
-	require.False(t, ctx.IsAborted())
-	require.Equal(t, 0, userSvc.validateCalls)
-	require.Equal(t, 0, userSvc.getUserCalls)
-
-	userIDValue, exists := ctx.Get("userID")
-	require.True(t, exists)
-	require.Equal(t, payload.ID, userIDValue.(uint))
-
-	userValue, exists := ctx.Get("user")
-	require.True(t, exists)
-	user := userValue.(*models.User)
-	require.Equal(t, payload.Username, user.Username)
-}
-
-func TestAuthMiddleware_CacheMissStoresValue(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-	defer mr.Close()
-
-	redisClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer redisClient.Close()
 
 	const (
-		token    = "new-token"
-		userID   = uint(202)
-		username = "new-user"
+		userID   = uint(101)
+		username = "testuser"
 	)
+	token := generateTestToken(t, userID, username, time.Now().Add(time.Hour))
 
-	userSvc := newStubUserService(userID, username)
-	middleware := NewAuthMiddleware(userSvc, redisClient)
+	middleware := NewAuthMiddleware(testJWTSecret)
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -131,58 +48,180 @@ func TestAuthMiddleware_CacheMissStoresValue(t *testing.T) {
 	middleware.RequireAuth()(ctx)
 
 	require.False(t, ctx.IsAborted())
-	require.Equal(t, 1, userSvc.validateCalls)
-	require.Equal(t, 1, userSvc.getUserCalls)
-
-	value, err := redisClient.Get(context.Background(), cacheKeyForToken(token)).Result()
-	require.NoError(t, err)
-
-	var cached cachedUser
-	require.NoError(t, json.Unmarshal([]byte(value), &cached))
-	require.Equal(t, userID, cached.ID)
-	require.Equal(t, username, cached.Username)
-	require.True(t, mr.TTL(cacheKeyForToken(token)) <= tokenCacheTTL)
-}
-
-func TestAuthMiddleware_RedisErrorsFallback(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-
-	redisClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer redisClient.Close()
-
-	// Close the fake redis to force network errors on GET/SET.
-	mr.Close()
-
-	const (
-		token    = "error-token"
-		userID   = uint(303)
-		username = "error-user"
-	)
-
-	userSvc := newStubUserService(userID, username)
-	middleware := NewAuthMiddleware(userSvc, redisClient)
-
-	w := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(w)
-	req, _ := http.NewRequest(http.MethodGet, "/feeds", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	ctx.Request = req
-
-	middleware.RequireAuth()(ctx)
-
-	require.False(t, ctx.IsAborted())
-	require.Equal(t, 1, userSvc.validateCalls)
-	require.Equal(t, 1, userSvc.getUserCalls)
 
 	userIDValue, exists := ctx.Get("userID")
 	require.True(t, exists)
 	require.Equal(t, userID, userIDValue.(uint))
+
+	userValue, exists := ctx.Get("user")
+	require.True(t, exists)
+	user := userValue.(*models.User)
+	require.Equal(t, username, user.Username)
+	require.Equal(t, userID, user.ID)
 }
 
-func TestCacheKeyForToken(t *testing.T) {
-	require.Equal(t, tokenCacheKeyPrefix+"foo", cacheKeyForToken("foo"))
-	require.Equal(t, tokenCacheKeyPrefix, cacheKeyForToken(""))
+func TestAuthMiddleware_ExpiredToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	token := generateTestToken(t, 1, "expired", time.Now().Add(-time.Hour))
+	middleware := NewAuthMiddleware(testJWTSecret)
+
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	req, _ := http.NewRequest(http.MethodGet, "/feeds", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	ctx.Request = req
+
+	middleware.RequireAuth()(ctx)
+
+	require.True(t, ctx.IsAborted())
+	require.Len(t, ctx.Errors, 1)
+}
+
+func TestAuthMiddleware_InvalidSignature(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id":  float64(1),
+		"username": "test",
+		"exp":      time.Now().Add(time.Hour).Unix(),
+	})
+	signed, _ := token.SignedString([]byte("wrong-secret"))
+
+	middleware := NewAuthMiddleware(testJWTSecret)
+
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	req, _ := http.NewRequest(http.MethodGet, "/feeds", nil)
+	req.Header.Set("Authorization", "Bearer "+signed)
+	ctx.Request = req
+
+	middleware.RequireAuth()(ctx)
+
+	require.True(t, ctx.IsAborted())
+	require.Len(t, ctx.Errors, 1)
+}
+
+func TestAuthMiddleware_MissingAuthHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	middleware := NewAuthMiddleware(testJWTSecret)
+
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	req, _ := http.NewRequest(http.MethodGet, "/feeds", nil)
+	ctx.Request = req
+
+	middleware.RequireAuth()(ctx)
+
+	require.True(t, ctx.IsAborted())
+	require.Len(t, ctx.Errors, 1)
+}
+
+func TestAuthMiddleware_InvalidAuthHeaderFormat(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	middleware := NewAuthMiddleware(testJWTSecret)
+
+	tests := []struct {
+		name   string
+		header string
+	}{
+		{"no bearer prefix", "token-without-bearer"},
+		{"wrong prefix", "Basic sometoken"},
+		{"empty bearer", "Bearer "},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(w)
+			req, _ := http.NewRequest(http.MethodGet, "/feeds", nil)
+			req.Header.Set("Authorization", tc.header)
+			ctx.Request = req
+
+			middleware.RequireAuth()(ctx)
+
+			require.True(t, ctx.IsAborted())
+		})
+	}
+}
+
+func TestAuthMiddleware_MissingClaims(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name   string
+		claims jwt.MapClaims
+	}{
+		{
+			name: "missing user_id",
+			claims: jwt.MapClaims{
+				"username": "test",
+				"exp":      time.Now().Add(time.Hour).Unix(),
+			},
+		},
+		{
+			name: "missing username",
+			claims: jwt.MapClaims{
+				"user_id": float64(1),
+				"exp":     time.Now().Add(time.Hour).Unix(),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			token := jwt.NewWithClaims(jwt.SigningMethodHS256, tc.claims)
+			signed, _ := token.SignedString([]byte(testJWTSecret))
+
+			middleware := NewAuthMiddleware(testJWTSecret)
+
+			w := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(w)
+			req, _ := http.NewRequest(http.MethodGet, "/feeds", nil)
+			req.Header.Set("Authorization", "Bearer "+signed)
+			ctx.Request = req
+
+			middleware.RequireAuth()(ctx)
+
+			require.True(t, ctx.IsAborted())
+			require.Len(t, ctx.Errors, 1)
+		})
+	}
+}
+
+func TestRequestIDMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("generates new request ID", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(w)
+		req, _ := http.NewRequest(http.MethodGet, "/", nil)
+		ctx.Request = req
+
+		RequestIDMiddleware()(ctx)
+
+		id, ok := GetRequestIDFromContext(ctx)
+		require.True(t, ok)
+		require.Len(t, id, 8)
+		require.Equal(t, id, w.Header().Get("X-Request-ID"))
+	})
+
+	t.Run("propagates existing request ID", func(t *testing.T) {
+		const existingID = "upstream1"
+
+		w := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(w)
+		req, _ := http.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("X-Request-ID", existingID)
+		ctx.Request = req
+
+		RequestIDMiddleware()(ctx)
+
+		id, ok := GetRequestIDFromContext(ctx)
+		require.True(t, ok)
+		require.Equal(t, existingID, id)
+		require.Equal(t, existingID, w.Header().Get("X-Request-ID"))
+	})
 }
