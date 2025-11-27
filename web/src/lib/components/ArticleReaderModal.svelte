@@ -41,7 +41,9 @@
 <Modal 
 	open={open} 
 	title={article ? article.title : 'Article'} 
-	showFooter={!loading && !error && !!article}
+	showFooter={false}
+	fullscreen={true}
+	showHeader={false}
 	on:close={handleClose}
 >
 	{#if loading}
@@ -52,61 +54,72 @@
 	{:else if error}
 		<div class="reader-state error">
 			<p>{error}</p>
+			<button class="button secondary" on:click={handleClose}>Close</button>
 		</div>
 	{:else if article}
-		<div class="reader-metadata">
-			<div class="meta-left">
-				{#if article.url}
-					<span class="meta-source">{getSourceDomain(article.url)}</span>
-				{/if}
-				{#if article.published_at}
-					<span class="meta-separator">•</span>
-					<time datetime={article.published_at}>{formatDateTime(article.published_at)}</time>
+		<article class="reader-container">
+			<header class="reader-header">
+				<h1>{article.title}</h1>
+				<div class="reader-metadata">
+					<div class="meta-left">
+						{#if article.url}
+							<span class="meta-source">{getSourceDomain(article.url)}</span>
+						{/if}
+						{#if article.published_at}
+							<span class="meta-separator">•</span>
+							<time datetime={article.published_at}>{formatDateTime(article.published_at)}</time>
+						{/if}
+					</div>
+					{#if article.processing_model}
+						<span class="meta-model">AI: {article.processing_model}</span>
+					{/if}
+				</div>
+			</header>
+
+			{#if article.summary}
+				<section class="reader-summary">
+					<h4>AI Summary</h4>
+					<p>{article.summary}</p>
+				</section>
+			{/if}
+
+			<div class="reader-body" class:empty={!article.content}>
+				{#if article.content}
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+					{@html article.content}
+				{:else}
+					<p>No content available for this article.</p>
 				{/if}
 			</div>
-			{#if article.processing_model}
-				<span class="meta-model">AI: {article.processing_model}</span>
-			{/if}
-		</div>
+		</article>
 
-		{#if article.summary}
-			<section class="reader-summary">
-				<h4>AI Summary</h4>
-				<p>{article.summary}</p>
-			</section>
-		{/if}
-
-		<div class="reader-body" class:empty={!article.content}>
-			{#if article.content}
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				{@html article.content}
-			{:else}
-				<p>No content available for this article.</p>
-			{/if}
+		<!-- Floating Toolbar -->
+		<div class="floating-toolbar">
+			<button 
+				class="toolbar-button primary"
+				on:click={handleOpenOriginal}
+				disabled={!article?.url}
+				title="Open Original"
+			>
+				<svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+				</svg>
+			</button>
+			<button 
+				class="toolbar-button secondary"
+				on:click={handleClose}
+				title="Close Reader"
+			>
+				<svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+				</svg>
+			</button>
 		</div>
 	{:else}
 		<div class="reader-state">
 			<p>Select an article to start reading.</p>
 		</div>
 	{/if}
-
-	<svelte:fragment slot="footer">
-		{#if article}
-			<div class="reader-actions">
-				<button 
-					class="button primary"
-					on:click={handleOpenOriginal}
-					disabled={!article?.url}
-				>
-					Open Original
-				</button>
-				<div class="reader-action-group">
-					<button class="button secondary" disabled title="Coming soon">Mark Read</button>
-					<button class="button secondary" disabled title="Coming soon">Star</button>
-				</div>
-			</div>
-		{/if}
-	</svelte:fragment>
 </Modal>
 
 <style>
@@ -115,10 +128,12 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		padding: var(--space-5);
+		padding: var(--space-6);
 		gap: var(--space-3);
 		text-align: center;
 		color: var(--text-muted);
+		min-height: 50vh;
+		width: 100%;
 	}
 
 	.reader-state.error {
@@ -134,13 +149,32 @@
 		animation: spin 1s linear infinite;
 	}
 
+	.reader-container {
+		max-width: 800px;
+		width: 100%;
+		margin: 0 auto;
+		padding-bottom: 80px; /* Space for floating toolbar */
+	}
+
+	.reader-header {
+		margin-bottom: var(--space-6);
+		text-align: center;
+	}
+
+	.reader-header h1 {
+		font-size: 2.5rem;
+		line-height: 1.3;
+		margin-bottom: var(--space-4);
+		color: var(--text);
+	}
+
 	.reader-metadata {
 		display: flex;
-		justify-content: space-between;
+		justify-content: center;
 		align-items: center;
+		gap: var(--space-4);
 		font-size: 0.875rem;
 		color: var(--text-muted);
-		margin-bottom: var(--space-4);
 	}
 
 	.meta-left {
@@ -151,7 +185,7 @@
 
 	.meta-source {
 		font-weight: 600;
-		color: var(--text-muted);
+		color: var(--text);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 	}
@@ -172,8 +206,10 @@
 		background: var(--bg-elev);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
-		padding: var(--space-4);
-		margin-bottom: var(--space-4);
+		padding: var(--space-5);
+		margin-bottom: var(--space-6);
+		font-size: 1.1rem;
+		line-height: 1.7;
 	}
 
 	.reader-summary h4 {
@@ -186,79 +222,156 @@
 
 	.reader-summary p {
 		margin: 0;
-		line-height: 1.6;
 		color: var(--text);
 	}
 
 	.reader-body {
-		max-height: 60vh;
-		overflow-y: auto;
-		padding-right: var(--space-2);
-		font-size: 1rem;
-		line-height: 1.6;
+		font-size: 1.25rem;
+		line-height: 1.8;
 		color: var(--text);
+		font-family: 'Georgia', var(--font-body); /* Optimize for reading */
 	}
 
 	.reader-body.empty {
 		color: var(--text-muted);
+		text-align: center;
+		padding: var(--space-6);
+	}
+
+	/* Content Styling */
+	.reader-body :global(h1),
+	.reader-body :global(h2),
+	.reader-body :global(h3) {
+		margin-top: 2em;
+		margin-bottom: 0.8em;
+		line-height: 1.3;
+	}
+
+	.reader-body :global(p) {
+		margin-bottom: 1.5em;
 	}
 
 	.reader-body :global(img) {
 		max-width: 100%;
 		height: auto;
 		display: block;
-		margin: var(--space-3) auto;
+		margin: var(--space-5) auto;
+		border-radius: var(--radius-sm);
 	}
 
 	.reader-body :global(pre) {
 		background: var(--bg-elev);
-		padding: var(--space-3);
+		padding: var(--space-4);
 		border-radius: var(--radius-sm);
 		overflow-x: auto;
 		font-family: var(--font-mono);
+		font-size: 0.9em;
+		margin: var(--space-4) 0;
+		border: 1px solid var(--border);
 	}
 
 	.reader-body :global(code) {
 		font-family: var(--font-mono);
+		background: var(--bg-elev);
+		padding: 0.2em 0.4em;
+		border-radius: 4px;
+		font-size: 0.9em;
+	}
+
+	.reader-body :global(pre code) {
+		background: none;
+		padding: 0;
+		border-radius: 0;
 	}
 
 	.reader-body :global(a) {
 		color: var(--primary);
 		text-decoration: underline;
-		word-break: break-word;
+		text-underline-offset: 2px;
 	}
 
 	.reader-body :global(blockquote) {
-		border-left: 3px solid var(--border);
-		margin: var(--space-3) 0;
-		padding: 0 0 0 var(--space-3);
+		border-left: 4px solid var(--primary);
+		margin: var(--space-5) 0;
+		padding: var(--space-2) 0 var(--space-2) var(--space-5);
 		color: var(--text-muted);
+		font-style: italic;
+		background: linear-gradient(to right, var(--bg-elev), transparent);
 	}
 
-	.reader-actions {
+	.reader-body :global(ul),
+	.reader-body :global(ol) {
+		margin-bottom: 1.5em;
+		padding-left: 1.5em;
+	}
+
+	.reader-body :global(li) {
+		margin-bottom: 0.5em;
+	}
+
+	/* Floating Toolbar */
+	.floating-toolbar {
+		position: fixed;
+		bottom: var(--space-6);
+		right: var(--space-6);
 		display: flex;
-		justify-content: space-between;
-		align-items: center;
+		flex-direction: column;
 		gap: var(--space-3);
+		z-index: 100;
 	}
 
-	.reader-action-group {
+	.toolbar-button {
+		width: 56px;
+		height: 56px;
+		border-radius: 50%;
 		display: flex;
-		gap: var(--space-2);
+		align-items: center;
+		justify-content: center;
+		border: none;
+		cursor: pointer;
+		box-shadow: var(--shadow-md);
+		transition: transform 0.2s ease, box-shadow 0.2s ease;
+		background: var(--bg);
+		color: var(--text);
+	}
+
+	.toolbar-button:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+	}
+
+	.toolbar-button.primary {
+		background: var(--primary);
+		color: var(--primary-contrast);
+	}
+
+	.toolbar-button.primary:hover {
+		background: color-mix(in srgb, var(--primary) 90%, black);
+	}
+
+	.toolbar-button svg {
+		width: 24px;
+		height: 24px;
 	}
 
 	@media (max-width: 768px) {
+		.reader-header h1 {
+			font-size: 1.8rem;
+		}
+
 		.reader-body {
-			max-height: 50vh;
+			font-size: 1.1rem;
 		}
 
-		.reader-actions {
-			flex-direction: column;
-			align-items: stretch;
+		.floating-toolbar {
+			flex-direction: row;
+			bottom: var(--space-4);
+			right: var(--space-4);
 		}
 
-		.reader-action-group {
-			justify-content: stretch;
+		.toolbar-button {
+			width: 48px;
+			height: 48px;
 		}
 	}
 </style>

@@ -80,26 +80,6 @@
 									</button>
 								</div>
 							</div>
-
-							<div class="setting-item">
-								<div class="setting-info">
-									<label for="sidebar-toggle" class="setting-label">Sidebar</label>
-									<p class="setting-description">Show or hide the feed sidebar by default</p>
-								</div>
-								<div class="setting-control">
-									<button 
-										id="sidebar-toggle"
-										class="toggle-button"
-										class:active={$uiStore.sidebarOpen}
-										on:click={() => uiStore.toggleSidebar()}
-									>
-										<div class="toggle-track">
-											<div class="toggle-thumb"></div>
-										</div>
-										<span>{$uiStore.sidebarOpen ? 'Shown' : 'Hidden'}</span>
-									</button>
-								</div>
-							</div>
 						</section>
 
 						<!-- Account Section -->

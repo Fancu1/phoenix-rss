@@ -5,6 +5,7 @@
 	export let title = '';
 	export let showHeader = true;
 	export let showFooter = false;
+	export let fullscreen = false;
 	
 	const dispatch = createEventDispatcher();
 
@@ -29,13 +30,14 @@
 	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 	<div 
 		class="modal-overlay" 
+		class:fullscreen
 		on:click={handleOverlayClick}
 		on:keydown={handleKeydown}
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby={title ? 'modal-title' : undefined}
 	>
-		<div class="modal-container">
+		<div class="modal-container" class:fullscreen>
 			{#if showHeader}
 				<div class="modal-header">
 					<h3 id="modal-title" class="modal-title">{title}</h3>
