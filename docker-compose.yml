@@ -35,28 +35,28 @@ services:
       retries: 5
 
   kafka:
-    image: bitnamilegacy/kafka:4.0.0-debian-12-r10
+    image: apache/kafka:3.7.0
     container_name: phoenix_kafka
     networks:
       - phoenix
     ports:
       - "127.0.0.1:19092:19092"
     environment:
-      - KAFKA_ENABLE_KRAFT=yes
-      - KAFKA_CFG_NODE_ID=1
-      - KAFKA_CFG_PROCESS_ROLES=broker,controller
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@localhost:29093
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:29093,CLIENT://:19092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,CLIENT://localhost:19092
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,CLIENT:PLAINTEXT
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
-      - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-      - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
-      - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
-      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=false
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:29093
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:29093,CLIENT://:19092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,CLIENT://localhost:19092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,CLIENT:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+      - CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 10
@@ -66,7 +66,7 @@ services:
   # Init Containers (run once and exit)
   # =============================================================================
   kafka-init:
-    image: bitnamilegacy/kafka:4.0.0-debian-12-r10
+    image: apache/kafka:3.7.0
     container_name: phoenix_kafka_init
     networks:
       - phoenix
@@ -81,7 +81,7 @@ services:
         echo "Creating Kafka topics..."
         for topic in feed.fetch articles.check articles.new articles.processed; do
           echo "Creating topic: $$topic"
-          kafka-topics.sh --bootstrap-server kafka:9092 \
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
             --create \
             --topic $$topic \
             --partitions 3 \
@@ -89,7 +89,7 @@ services:
             --if-not-exists 2>&1 || true
         done
         echo "Topics created successfully:"
-        kafka-topics.sh --bootstrap-server kafka:9092 --list
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
         echo "Kafka initialization complete!"
 
   migrator:
