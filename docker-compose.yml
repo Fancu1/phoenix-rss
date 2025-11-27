@@ -124,6 +124,10 @@ services:
       - "127.0.0.1:${USER_SERVICE_PORT:-50051}:${USER_SERVICE_PORT:-50051}"
     env_file:
       - .env
+    environment:
+      - LOG_FILE=/var/log/phoenix/user-service.log
+    volumes:
+      - ./logs:/var/log/phoenix
     restart: unless-stopped
 
   feed-service:
@@ -146,6 +150,10 @@ services:
       - "127.0.0.1:${FEED_SERVICE_PORT:-50053}:${FEED_SERVICE_PORT:-50053}"
     env_file:
       - .env
+    environment:
+      - LOG_FILE=/var/log/phoenix/feed-service.log
+    volumes:
+      - ./logs:/var/log/phoenix
     restart: unless-stopped
 
   api-service:
@@ -170,6 +178,10 @@ services:
       - "127.0.0.1:${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
     env_file:
       - .env
+    environment:
+      - LOG_FILE=/var/log/phoenix/api-service.log
+    volumes:
+      - ./logs:/var/log/phoenix
     restart: unless-stopped
 
   scheduler-service:
@@ -188,6 +200,10 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      - LOG_FILE=/var/log/phoenix/scheduler-service.log
+    volumes:
+      - ./logs:/var/log/phoenix
     restart: unless-stopped
 
   ai-service:
@@ -204,6 +220,10 @@ services:
         condition: service_completed_successfully
     env_file:
       - .env
+    environment:
+      - LOG_FILE=/var/log/phoenix/ai-service.log
+    volumes:
+      - ./logs:/var/log/phoenix
     restart: unless-stopped
 
 volumes:

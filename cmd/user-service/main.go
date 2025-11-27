@@ -19,13 +19,19 @@ import (
 )
 
 func main() {
+	if err := logger.InitFromEnv(); err != nil {
+		fmt.Printf("Failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer logger.Close()
+
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		fmt.Printf("Failed to load config: %v\n", err)
 		os.Exit(1)
 	}
 
-	logger := logger.New(slog.LevelDebug)
+	log := logger.New(slog.LevelDebug)
 
 	// initialize database connection
 	db := userRepo.InitDB(&cfg.Database)
@@ -54,15 +60,14 @@ func main() {
 
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		logger.Error("failed to listen", "port", port, "error", err)
+		log.Error("failed to listen", "port", port, "error", err)
 		os.Exit(1)
 	}
 
-	logger.Info("User Service starting", "port", port)
-	fmt.Printf("User Service listening on port %s\n", port)
+	log.Info("User Service starting", "port", port)
 
 	if err := grpcServer.Serve(lis); err != nil {
-		logger.Error("failed to serve gRPC server", "error", err)
+		log.Error("failed to serve gRPC server", "error", err)
 		os.Exit(1)
 	}
 }

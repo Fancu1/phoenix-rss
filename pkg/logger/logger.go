@@ -2,13 +2,70 @@ package logger
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"os"
+	"sync"
 )
 
-// New create a new slog.Logger with the specified level
+var (
+	// defaultWriter is the writer used by all loggers, can be stdout or file+stdout
+	defaultWriter io.Writer = os.Stdout
+	writerMu      sync.RWMutex
+	logFile       *os.File
+)
+
+// InitFromEnv initializes the logger based on LOG_FILE environment variable.
+func InitFromEnv() error {
+	logFilePath := os.Getenv("LOG_FILE")
+	if logFilePath == "" {
+		return nil // No file logging, use stdout only
+	}
+
+	return InitWithFile(logFilePath)
+}
+
+// InitWithFile configures the logger to write to both stdout and the specified file.
+func InitWithFile(filePath string) error {
+	writerMu.Lock()
+	defer writerMu.Unlock()
+
+	if logFile != nil {
+		_ = logFile.Close()
+	}
+
+	f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
+
+	logFile = f
+	defaultWriter = io.MultiWriter(os.Stdout, f)
+	return nil
+}
+
+// Close closes the log file if one was opened. Call this on application shutdown.
+func Close() error {
+	writerMu.Lock()
+	defer writerMu.Unlock()
+
+	if logFile != nil {
+		err := logFile.Close()
+		logFile = nil
+		defaultWriter = os.Stdout
+		return err
+	}
+	return nil
+}
+
+func getWriter() io.Writer {
+	writerMu.RLock()
+	defer writerMu.RUnlock()
+	return defaultWriter
+}
+
 func New(level slog.Level) *slog.Logger {
-	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	handler := slog.NewTextHandler(getWriter(), &slog.HandlerOptions{Level: level})
 	return slog.New(handler)
 }
 

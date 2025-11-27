@@ -20,6 +20,12 @@ import (
 )
 
 func main() {
+	if err := logger.InitFromEnv(); err != nil {
+		fmt.Printf("Failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer logger.Close()
+
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		fmt.Printf("Failed to load config: %v\n", err)

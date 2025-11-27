@@ -33,6 +33,7 @@ Thumbs.db
 *.log
 *.tmp
 *.bak
+logs/
 
 .cursor/
 .cursorindexingignore

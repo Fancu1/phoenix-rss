@@ -11,8 +11,9 @@ import (
 
 // ErrorResponse represent the JSON structure returned to clients for errors
 type ErrorResponse struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code      int    `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id,omitempty"`
 }
 
 // ErrorHandlerMiddleware create a middleware that handles errors in a centralized way
@@ -53,6 +54,8 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 			}
 		}
 
+		requestID, _ := logger.GetRequestID(c.Request.Context())
+
 		if foundAppError && appErr != nil {
 			// Handle known application error
 			log.Warn("application error occurred",
@@ -63,10 +66,11 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 				"cause", appErr.cause,
 			)
 
-			// Return structured error response
+			// Return structured error response with request_id
 			c.AbortWithStatusJSON(appErr.HTTPStatus, ErrorResponse{
-				Code:    appErr.Code,
-				Message: appErr.Message,
+				Code:      appErr.Code,
+				Message:   appErr.Message,
+				RequestID: requestID,
 			})
 		} else {
 			// Handle unknown/unexpected error
@@ -78,8 +82,9 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 
 			// Return generic internal server error (don't expose internal details)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse{
-				Code:    ErrInternalServer.Code,
-				Message: ErrInternalServer.Message,
+				Code:      ErrInternalServer.Code,
+				Message:   ErrInternalServer.Message,
+				RequestID: requestID,
 			})
 		}
 	}

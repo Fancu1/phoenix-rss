@@ -5,11 +5,13 @@ import (
 
 	"github.com/Fancu1/phoenix-rss/internal/api-service/handler"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
+	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
 func (s *Server) setupRoutes() {
 	// Apply global middleware
 	s.engine.Use(handler.RequestIDMiddleware())
+	s.engine.Use(logger.GinLoggingMiddleware())
 	s.engine.Use(gzip.Gzip(gzip.DefaultCompression))
 	s.engine.Use(ierr.ErrorHandlerMiddleware())
 
