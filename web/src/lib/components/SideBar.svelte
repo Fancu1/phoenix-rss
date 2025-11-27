@@ -1,6 +1,9 @@
 <script>
+	import { createEventDispatcher } from 'svelte';
 	import { page } from '$app/stores';
 	import { feedsStore, uiStore } from '../stores.js';
+
+	const dispatch = createEventDispatcher();
 
 	// Get current feed ID from URL
 	$: currentFeedId = $page.params.feed_id ? parseInt($page.params.feed_id) : null;
@@ -22,12 +25,24 @@
 			uiStore.setSidebar(false);
 		}
 	}
+
+	function handleAddSubscription() {
+		dispatch('add-subscription');
+	}
 </script>
 
 <aside class="sidebar" class:open={$uiStore.sidebarOpen}>
 	<div class="sidebar-header">
 		<h3>Subscriptions</h3>
-		<span class="feed-count">{$feedsStore.length}</span>
+		<button 
+			class="add-feed-button" 
+			on:click={handleAddSubscription}
+			title="Add Subscription"
+		>
+			<svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+			</svg>
+		</button>
 	</div>
 
 	<div class="sidebar-content">
@@ -107,6 +122,29 @@
 		font-size: 1rem;
 		font-weight: 600;
 		color: var(--text);
+	}
+
+	.add-feed-button {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: var(--space-1);
+		border-radius: var(--radius-sm);
+		transition: color 0.2s ease, background-color 0.2s ease;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.add-feed-button:hover {
+		color: var(--primary);
+		background: var(--bg);
+	}
+
+	.add-feed-button svg {
+		width: 20px;
+		height: 20px;
 	}
 
 	.feed-count {

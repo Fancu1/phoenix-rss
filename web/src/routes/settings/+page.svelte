@@ -31,10 +31,10 @@
 
 {#if $authStore.status === 'authenticated'}
 	<div class="main-layout">
-		<NavBar on:add-subscription={handleAddSubscription} />
+		<NavBar />
 		
 		<div class="content-layout">
-			<SideBar />
+			<SideBar on:add-subscription={handleAddSubscription} />
 			
 			<main class="main-content" class:sidebar-open={$uiStore.sidebarOpen}>
 				<div class="settings-page">
@@ -208,9 +208,9 @@
 	}
 
 	.settings-page {
-		max-width: 800px;
-		margin: 0 auto;
-		padding: var(--space-6) var(--space-4);
+		max-width: 1200px;
+		margin: 0;
+		padding: var(--space-6) var(--space-6);
 	}
 
 	.settings-header {
@@ -226,6 +226,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-6);
+		max-width: 800px;
 	}
 
 	.settings-section {

@@ -14,10 +14,6 @@
 		uiStore.toggleTheme();
 	}
 
-	function showAddSubscription() {
-		dispatch('add-subscription');
-	}
-
 	function handleLogout() {
 		authStore.logout();
 		showUserMenu = false;
@@ -69,17 +65,6 @@
 	</div>
 
 	<div class="navbar-right">
-		<button 
-			class="navbar-button add-subscription"
-			on:click={showAddSubscription}
-			title="Add subscription"
-		>
-			<svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-			</svg>
-			<span class="button-text">Subscribe</span>
-		</button>
-
 		<button 
 			class="navbar-button theme-toggle"
 			on:click={toggleTheme}
@@ -241,21 +226,6 @@
 	.search-input:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
-	}
-
-	.add-subscription {
-		background: var(--primary);
-		color: var(--primary-contrast);
-	}
-
-	.add-subscription:hover {
-		background: color-mix(in srgb, var(--primary) 90%, black);
-		color: var(--primary-contrast);
-	}
-
-	.button-text {
-		font-size: 0.875rem;
-		font-weight: 500;
 	}
 
 	.user-menu-container {

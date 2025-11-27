@@ -200,10 +200,10 @@
 
 {#if $authStore.status === 'authenticated'}
 	<div class="main-layout">
-		<NavBar on:add-subscription={handleAddSubscription} />
+		<NavBar />
 		
 		<div class="content-layout">
-			<SideBar />
+			<SideBar on:add-subscription={handleAddSubscription} />
 			
 			<main class="main-content" class:sidebar-open={$uiStore.sidebarOpen}>
 				{#if loading}
@@ -383,9 +383,9 @@
 	}
 
 	.feed-page {
-		max-width: 800px;
-		margin: 0 auto;
-		padding: var(--space-4);
+		max-width: 1200px;
+		margin: 0;
+		padding: var(--space-6);
 	}
 
 	.feed-header {

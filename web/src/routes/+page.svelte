@@ -63,10 +63,10 @@
 
 {#if $authStore.status === 'authenticated'}
 	<div class="main-layout">
-		<NavBar on:add-subscription={handleAddSubscription} />
+		<NavBar />
 		
 		<div class="content-layout">
-			<SideBar />
+			<SideBar on:add-subscription={handleAddSubscription} />
 			
 			<main class="main-content" class:sidebar-open={$uiStore.sidebarOpen}>
 				<div class="dashboard">
@@ -153,13 +153,13 @@
 	}
 
 	.dashboard {
-		max-width: 800px;
-		margin: 0 auto;
-		padding: var(--space-6) var(--space-4);
+		max-width: 1200px;
+		margin: 0;
+		padding: var(--space-6) var(--space-6);
 	}
 
 	.dashboard-header {
-		text-align: center;
+		text-align: left;
 		margin-bottom: var(--space-6);
 	}
 
@@ -175,6 +175,7 @@
 		padding: var(--space-6);
 		text-align: center;
 		box-shadow: var(--shadow-sm);
+		max-width: 600px;
 	}
 
 	.welcome-icon {
@@ -216,7 +217,7 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-lg);
 		padding: var(--space-5);
-		text-align: center;
+		text-align: left;
 	}
 
 	.recent-activity h2 {
