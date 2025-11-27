@@ -7,6 +7,8 @@ import (
 	"os"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/user-service/core"
@@ -38,6 +40,11 @@ func main() {
 	// create gRPC server
 	grpcServer := grpc.NewServer()
 	userpb.RegisterUserServiceServer(grpcServer, grpcHandler)
+
+	// register gRPC health check service
+	healthServer := health.NewServer()
+	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
+	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	// start listening on the specified port
 	port := "50051" // default port for user service

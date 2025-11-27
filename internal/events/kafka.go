@@ -78,7 +78,8 @@ func (c *KafkaConsumer) Start(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			return err
+			c.logger.Error("failed to fetch message", "error", err, "topic", c.cfg.Topic)
+			continue
 		}
 		var evt FeedFetchEvent
 		if err := json.Unmarshal(m.Value, &evt); err != nil {

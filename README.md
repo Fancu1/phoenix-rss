@@ -9,7 +9,7 @@ A modern, AI-powered RSS aggregator built on a scalable microservice architectur
 -   **AI-Powered Content Processing**: Leverages Large Language Models via Kafka events to automatically process and summarize article content, enhancing discoverability.
 -   **Background Article Refresh**: Scheduler-driven article checks use conditional HTTP requests (ETag / Last-Modified) to refresh content only when sources change, respecting robots.txt and publishing work to Kafka for resilient processing.
 -   **Event-Driven Core**: Uses Kafka for asynchronous, decoupled communication between services, ensuring resilience and scalability.
--   **Containerized & Production-Ready**: Fully containerized with Docker and orchestrated via Docker Compose, featuring healthchecks and a streamlined multi-stage build process.
+-   **Containerized & Production-Ready**: Fully containerized with Docker and orchestrated via Docker Compose, featuring healthchecks and automated initialization.
 
 ## Tech Stack
 
@@ -30,48 +30,77 @@ A modern, AI-powered RSS aggregator built on a scalable microservice architectur
 ├── web/                  # SvelteKit frontend application
 ├── cmd/                  # Application entry points for each service
 ├── internal/             # Private application and library code
-├── docs/                 # Project design and architecture documents
+├── docker/               # Per-service Dockerfiles
 ├── protos/               # Protocol Buffer definitions
 ├── db/                   # Database migrations
-└── docker-compose.yml    # Docker Compose setup
+└── docker-compose.yml    # Docker Compose orchestration
 ```
 
 ## Usage
 
-Phoenix RSS is designed to be run entirely with Docker Compose.
+Phoenix RSS is designed to be run entirely with Docker Compose. A single command handles everything: infrastructure startup, database migrations, Kafka topic creation, and service orchestration.
 
 ### Prerequisites
 
 -   Docker
 -   Docker Compose (v2+)
 
-### 1. Initial Setup & Migration
+### Quick Start
 
-First, create your `.env` file from the template. You only need to do this once.
+1. Create your `.env` file from the template:
 
 ```bash
 cp env.example .env
-# Remember to edit .env with your sensitive values (e.g., API keys)
+# Edit .env with your values (e.g., AI_SERVICE_LLM_API_KEY)
 ```
 
-Next, run the database migrations:
+2. Start the application:
 
 ```bash
-docker compose run --rm migrator up
+docker compose up -d
 ```
 
-### 2. Starting All Services
-
-To build and start the entire application stack for the first time or after major changes, run:
-
-```bash
-docker compose up --build -d
-```
+That's it! The system will automatically:
+- Start PostgreSQL, Redis, and Kafka with health checks
+- Create required Kafka topics
+- Run database migrations
+- Start all application services in the correct order
 
 The web application will be available at `http://localhost:8080`.
 
-### 3. Stopping the Application
+### Stopping the Application
 
 ```bash
 docker compose down
+```
+
+### Rebuilding After Code Changes
+
+```bash
+# Rebuild specific service
+docker compose build feed-service
+docker compose up -d feed-service
+
+# Rebuild all services
+docker compose up --build -d
+```
+
+## Development
+
+For local development without Docker:
+
+```bash
+# Start infrastructure only
+make infra-up
+
+# Run migrations
+make migrate-up
+
+# Run individual services
+make run-api-service
+make run-user-service
+make run-feed-service
+
+# Run tests
+make test
 ```

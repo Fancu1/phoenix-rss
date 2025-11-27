@@ -100,7 +100,8 @@ func (c *KafkaArticleCheckConsumer) Start(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			return fmt.Errorf("failed to fetch article check message: %w", err)
+			c.logger.Error("failed to fetch article check message", "error", err)
+			continue
 		}
 
 		var event ArticleCheckEvent

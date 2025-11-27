@@ -1,4 +1,7 @@
 services:
+  # =============================================================================
+  # Infrastructure Services
+  # =============================================================================
   postgres:
     image: postgres:14
     container_name: phoenix_postgres
@@ -11,7 +14,7 @@ services:
     ports:
       - "127.0.0.1:15432:5432"
     volumes:
-      - ./postgresql_data:/var/lib/postgresql/data
+      - postgresql_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d phoenix_rss"]
       interval: 10s
@@ -51,9 +54,48 @@ services:
       - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
       - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
       - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=false
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # =============================================================================
+  # Init Containers (run once and exit)
+  # =============================================================================
+  kafka-init:
+    image: bitnamilegacy/kafka:4.0.0-debian-12-r10
+    container_name: phoenix_kafka_init
+    networks:
+      - phoenix
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - KAFKA_BROKER=kafka:9092
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo "Creating Kafka topics..."
+        for topic in feed.fetch articles.check articles.new articles.processed; do
+          echo "Creating topic: $$topic"
+          kafka-topics.sh --bootstrap-server kafka:9092 \
+            --create \
+            --topic $$topic \
+            --partitions 3 \
+            --replication-factor 1 \
+            --if-not-exists 2>&1 || true
+        done
+        echo "Topics created successfully:"
+        kafka-topics.sh --bootstrap-server kafka:9092 --list
+        echo "Kafka initialization complete!"
 
   migrator:
-    image: golang:1.23-alpine
+    build:
+      context: .
+      dockerfile: docker/migrator.Dockerfile
     container_name: phoenix_migrator
     networks:
       - phoenix
@@ -62,18 +104,54 @@ services:
         condition: service_healthy
     env_file:
       - .env
-    volumes:
-      - .:/app
-    working_dir: /app
-    entrypoint: ["go", "run", "./cmd/migrator"]
-    profiles:
-      - tools
+
+  # =============================================================================
+  # Application Services
+  # =============================================================================
+  user-service:
+    build:
+      context: .
+      dockerfile: docker/user-service.Dockerfile
+    container_name: phoenix_user_service
+    networks:
+      - phoenix
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${USER_SERVICE_PORT:-50051}:${USER_SERVICE_PORT:-50051}"
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  feed-service:
+    build:
+      context: .
+      dockerfile: docker/feed-service.Dockerfile
+    container_name: phoenix_feed_service
+    networks:
+      - phoenix
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${FEED_SERVICE_PORT:-50053}:${FEED_SERVICE_PORT:-50053}"
+    env_file:
+      - .env
+    restart: unless-stopped
 
   api-service:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: api-service
+      dockerfile: docker/api-service.Dockerfile
     container_name: phoenix_api_service
     networks:
       - phoenix
@@ -82,48 +160,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
       user-service:
-        condition: service_started
+        condition: service_healthy
       feed-service:
-        condition: service_started
-    ports:
-      - "127.0.0.1:${SERVER_PORT}:${SERVER_PORT}"
-    env_file:
-      - .env
-    restart: unless-stopped
-
-  user-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: user-service
-    container_name: phoenix_user_service
-    networks:
-      - phoenix
-    depends_on:
-      postgres:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${USER_SERVICE_PORT}:${USER_SERVICE_PORT}"
-    env_file:
-      - .env
-    restart: unless-stopped
-
-  feed-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: feed-service
-    container_name: phoenix_feed_service
-    networks:
-      - phoenix
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_started
-    ports:
-      - "127.0.0.1:${FEED_SERVICE_PORT}:${FEED_SERVICE_PORT}"
+      - "127.0.0.1:${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
     env_file:
       - .env
     restart: unless-stopped
@@ -131,16 +175,17 @@ services:
   scheduler-service:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: scheduler-service
+      dockerfile: docker/scheduler-service.Dockerfile
     container_name: phoenix_scheduler
     networks:
       - phoenix
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       feed-service:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - .env
     restart: unless-stopped
@@ -148,14 +193,15 @@ services:
   ai-service:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: ai-service
+      dockerfile: docker/ai-service.Dockerfile
     container_name: phoenix_ai_service
     networks:
       - phoenix
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     env_file:
       - .env
     restart: unless-stopped

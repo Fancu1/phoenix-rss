@@ -13,6 +13,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/Fancu1/phoenix-rss/internal/config"
 	"github.com/Fancu1/phoenix-rss/internal/events"
@@ -166,6 +168,11 @@ func startGRPCServer(ctx context.Context, handler *handler.FeedServiceHandler, p
 
 	grpcServer := grpc.NewServer()
 	feedpb.RegisterFeedServiceServer(grpcServer, handler)
+
+	// register gRPC health check service
+	healthServer := health.NewServer()
+	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
+	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	log.Info("starting gRPC server", "address", address)
 
