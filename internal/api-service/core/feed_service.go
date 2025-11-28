@@ -25,9 +25,10 @@ type FeedServiceInterface interface {
 	ListAllFeeds(ctx context.Context) ([]*models.Feed, error)
 	SubscribeToFeed(ctx context.Context, userID uint, url string) (*models.Feed, error)
 	BatchSubscribeToFeeds(ctx context.Context, userID uint, urls []string) (results []BatchSubscribeResult, imported, failed int, err error)
-	ListUserFeeds(ctx context.Context, userID uint) ([]*models.Feed, error)
+	ListUserFeeds(ctx context.Context, userID uint) ([]*models.UserFeed, error)
 	UnsubscribeFromFeed(ctx context.Context, userID, feedID uint) error
 	IsUserSubscribed(ctx context.Context, userID, feedID uint) (bool, error)
+	UpdateFeedCustomTitle(ctx context.Context, userID, feedID uint, customTitle *string) (*models.UserFeed, error)
 }
 
 // FeedServiceClient implement FeedServiceInterface using gRPC
@@ -89,8 +90,8 @@ func (c *FeedServiceClient) SubscribeToFeed(ctx context.Context, userID uint, ur
 	return c.convertPbToFeed(resp.Feed)
 }
 
-// ListUserFeeds return all feeds subscribed by a specific user
-func (c *FeedServiceClient) ListUserFeeds(ctx context.Context, userID uint) ([]*models.Feed, error) {
+// ListUserFeeds return all feeds subscribed by a specific user with custom titles
+func (c *FeedServiceClient) ListUserFeeds(ctx context.Context, userID uint) ([]*models.UserFeed, error) {
 	req := &feedpb.ListUserFeedsRequest{
 		UserId: uint64(userID),
 	}
@@ -100,9 +101,9 @@ func (c *FeedServiceClient) ListUserFeeds(ctx context.Context, userID uint) ([]*
 		return nil, fmt.Errorf("failed to list user feeds: %w", err)
 	}
 
-	feeds := make([]*models.Feed, len(resp.Feeds))
+	feeds := make([]*models.UserFeed, len(resp.Feeds))
 	for i, pbFeed := range resp.Feeds {
-		feed, err := c.convertPbToFeed(pbFeed)
+		feed, err := c.convertPbToUserFeed(pbFeed)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert feed %d: %w", pbFeed.Id, err)
 		}
@@ -172,6 +173,22 @@ func (c *FeedServiceClient) BatchSubscribeToFeeds(ctx context.Context, userID ui
 	return results, int(resp.Imported), int(resp.Failed), nil
 }
 
+// UpdateFeedCustomTitle updates the custom title for a user's feed subscription
+func (c *FeedServiceClient) UpdateFeedCustomTitle(ctx context.Context, userID, feedID uint, customTitle *string) (*models.UserFeed, error) {
+	req := &feedpb.UpdateSubscriptionRequest{
+		UserId:      uint64(userID),
+		FeedId:      uint64(feedID),
+		CustomTitle: customTitle,
+	}
+
+	resp, err := c.client.UpdateSubscription(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update subscription: %w", err)
+	}
+
+	return c.convertPbToUserFeed(resp.Feed)
+}
+
 // Helper method for protobuf conversion
 func (c *FeedServiceClient) convertPbToFeed(pbFeed *feedpb.Feed) (*models.Feed, error) {
 	createdAt, err := time.Parse(time.RFC3339, pbFeed.CreatedAt)
@@ -192,5 +209,18 @@ func (c *FeedServiceClient) convertPbToFeed(pbFeed *feedpb.Feed) (*models.Feed, 
 		Status:      models.FeedStatus(pbFeed.Status),
 		CreatedAt:   createdAt,
 		UpdatedAt:   updatedAt,
+	}, nil
+}
+
+// Helper method for protobuf conversion with custom title
+func (c *FeedServiceClient) convertPbToUserFeed(pbFeed *feedpb.Feed) (*models.UserFeed, error) {
+	feed, err := c.convertPbToFeed(pbFeed)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.UserFeed{
+		Feed:        *feed,
+		CustomTitle: pbFeed.CustomTitle,
 	}, nil
 }

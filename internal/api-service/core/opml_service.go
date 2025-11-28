@@ -69,7 +69,8 @@ func NewOPMLService() *OPMLService {
 }
 
 // GenerateOPML creates an OPML document from a list of feeds.
-func (s *OPMLService) GenerateOPML(feeds []*models.Feed, username string) ([]byte, error) {
+// Uses custom_title if set, otherwise falls back to the original feed title.
+func (s *OPMLService) GenerateOPML(feeds []*models.UserFeed, username string) ([]byte, error) {
 	opml := OPML{
 		Version: "2.0",
 		Head: OPMLHead{
@@ -83,9 +84,14 @@ func (s *OPMLService) GenerateOPML(feeds []*models.Feed, username string) ([]byt
 	}
 
 	for _, feed := range feeds {
+		// Use custom title if set, otherwise use original title
+		title := feed.Title
+		if feed.CustomTitle != nil && *feed.CustomTitle != "" {
+			title = *feed.CustomTitle
+		}
 		outline := OPMLOutline{
-			Text:   feed.Title,
-			Title:  feed.Title,
+			Text:   title,
+			Title:  title,
 			Type:   "rss",
 			XMLURL: feed.URL,
 		}
@@ -150,7 +156,7 @@ func (s *OPMLService) extractFeeds(outlines []OPMLOutline, feeds *[]OPMLFeedItem
 }
 
 // FilterDuplicates removes feeds that already exist in the user's subscriptions.
-func (s *OPMLService) FilterDuplicates(parsedFeeds []OPMLFeedItem, existingFeeds []*models.Feed) (toImport []OPMLFeedItem, duplicates []OPMLFeedItem) {
+func (s *OPMLService) FilterDuplicates(parsedFeeds []OPMLFeedItem, existingFeeds []*models.UserFeed) (toImport []OPMLFeedItem, duplicates []OPMLFeedItem) {
 	existingURLs := make(map[string]bool)
 	for _, feed := range existingFeeds {
 		// Normalize URL for comparison

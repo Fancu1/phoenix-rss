@@ -132,7 +132,7 @@ func (h *FeedServiceHandler) ListUserFeeds(ctx context.Context, req *feedpb.List
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
-	// FeedService.ListUserFeeds now returns only active feeds
+	// FeedService.ListUserFeeds now returns UserFeed with custom_title
 	feeds, err := h.feedService.ListUserFeeds(ctx, uint(req.UserId))
 	if err != nil {
 		log.Error("failed to list user feeds", "user_id", req.UserId, "error", err.Error())
@@ -150,6 +150,9 @@ func (h *FeedServiceHandler) ListUserFeeds(ctx context.Context, req *feedpb.List
 			Status:      string(feed.Status),
 			CreatedAt:   feed.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:   feed.UpdatedAt.Format(time.RFC3339),
+		}
+		if feed.CustomTitle != nil {
+			pbFeeds[i].CustomTitle = feed.CustomTitle
 		}
 	}
 
@@ -317,6 +320,41 @@ func (h *FeedServiceHandler) CheckSubscription(ctx context.Context, req *feedpb.
 	return &feedpb.CheckSubscriptionResponse{
 		IsSubscribed: isSubscribed,
 	}, nil
+}
+
+// UpdateSubscription updates subscription settings (e.g., custom title)
+func (h *FeedServiceHandler) UpdateSubscription(ctx context.Context, req *feedpb.UpdateSubscriptionRequest) (*feedpb.UpdateSubscriptionResponse, error) {
+	log := logger.FromContext(ctx)
+	log.Info("gRPC: UpdateSubscription", "user_id", req.UserId, "feed_id", req.FeedId)
+
+	if req.UserId == 0 {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+	if req.FeedId == 0 {
+		return nil, status.Error(codes.InvalidArgument, "feed_id is required")
+	}
+
+	userFeed, err := h.feedService.UpdateFeedCustomTitle(ctx, uint(req.UserId), uint(req.FeedId), req.CustomTitle)
+	if err != nil {
+		log.Error("failed to update subscription", "user_id", req.UserId, "feed_id", req.FeedId, "error", err.Error())
+		return nil, h.mapErrorToGRPC(err)
+	}
+
+	pbFeed := &feedpb.Feed{
+		Id:          uint64(userFeed.ID),
+		Title:       userFeed.Title,
+		Url:         userFeed.URL,
+		Description: userFeed.Description,
+		Status:      string(userFeed.Status),
+		CreatedAt:   userFeed.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   userFeed.UpdatedAt.Format(time.RFC3339),
+	}
+	if userFeed.CustomTitle != nil {
+		pbFeed.CustomTitle = userFeed.CustomTitle
+	}
+
+	log.Info("successfully updated subscription", "user_id", req.UserId, "feed_id", req.FeedId)
+	return &feedpb.UpdateSubscriptionResponse{Feed: pbFeed}, nil
 }
 
 func (h *FeedServiceHandler) ListArticlesToCheck(ctx context.Context, req *feedpb.ListArticlesToCheckRequest) (*feedpb.ListArticlesToCheckResponse, error) {

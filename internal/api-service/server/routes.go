@@ -43,6 +43,7 @@ func (s *Server) setupRoutes() {
 
 			// Feed-specific routes (with :feed_id parameter)
 			protected.DELETE("/feeds/:feed_id", s.feedHandler.UnsubscribeFeed)
+			protected.PATCH("/feeds/:feed_id", s.feedHandler.UpdateFeed)
 			protected.POST("/feeds/:feed_id/fetch", s.articleHandler.TriggerFetch)
 			protected.GET("/feeds/:feed_id/articles", s.articleHandler.ListArticles)
 

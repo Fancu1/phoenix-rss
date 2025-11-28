@@ -28,9 +28,10 @@ type FeedServiceInterface interface {
 	ListAllFeeds(ctx context.Context) ([]*models.Feed, error)
 	SubscribeToFeed(ctx context.Context, userID uint, url string) (*models.Feed, error)
 	BatchSubscribeToFeeds(ctx context.Context, userID uint, urls []string) ([]BatchSubscribeResult, error)
-	ListUserFeeds(ctx context.Context, userID uint) ([]*models.Feed, error)
+	ListUserFeeds(ctx context.Context, userID uint) ([]*models.UserFeed, error)
 	UnsubscribeFromFeed(ctx context.Context, userID, feedID uint) error
 	IsUserSubscribed(ctx context.Context, userID, feedID uint) (bool, error)
+	UpdateFeedCustomTitle(ctx context.Context, userID, feedID uint, customTitle *string) (*models.UserFeed, error)
 }
 
 type FeedService struct {
@@ -182,12 +183,12 @@ func (s *FeedService) createFeed(ctx context.Context, url string) (*models.Feed,
 	return createdFeed, nil
 }
 
-func (s *FeedService) ListUserFeeds(ctx context.Context, userID uint) ([]*models.Feed, error) {
+func (s *FeedService) ListUserFeeds(ctx context.Context, userID uint) ([]*models.UserFeed, error) {
 	log := logger.FromContext(ctx)
 
 	log.Info("listing feeds for user", "user_id", userID)
 
-	feeds, err := s.repo.ListByUserID(ctx, userID)
+	feeds, err := s.repo.ListUserFeeds(ctx, userID)
 	if err != nil {
 		log.Error("failed to list user feeds", "user_id", userID, "error", err.Error())
 		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to list feeds for user %d: %w", userID, err))
@@ -195,6 +196,40 @@ func (s *FeedService) ListUserFeeds(ctx context.Context, userID uint) ([]*models
 
 	log.Info("successfully listed user feeds", "user_id", userID, "count", len(feeds))
 	return feeds, nil
+}
+
+func (s *FeedService) UpdateFeedCustomTitle(ctx context.Context, userID, feedID uint, customTitle *string) (*models.UserFeed, error) {
+	log := logger.FromContext(ctx)
+	log.Info("updating feed custom title", "user_id", userID, "feed_id", feedID)
+
+	isSubscribed, err := s.repo.IsUserSubscribed(ctx, userID, feedID)
+	if err != nil {
+		log.Error("failed to check subscription status", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to check subscription status for user %d and feed %d: %w", userID, feedID, err))
+	}
+
+	if !isSubscribed {
+		log.Warn("user not subscribed to feed", "user_id", userID, "feed_id", feedID)
+		return nil, fmt.Errorf("user %d not subscribed to feed %d: %w", userID, feedID, ierr.ErrNotSubscribed)
+	}
+
+	err = s.repo.UpdateSubscriptionCustomTitle(ctx, userID, feedID, customTitle)
+	if err != nil {
+		log.Error("failed to update custom title", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to update custom title for user %d and feed %d: %w", userID, feedID, err))
+	}
+
+	subscription, err := s.repo.GetSubscription(ctx, userID, feedID)
+	if err != nil {
+		log.Error("failed to get updated subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to get subscription for user %d and feed %d: %w", userID, feedID, err))
+	}
+
+	log.Info("successfully updated feed custom title", "user_id", userID, "feed_id", feedID)
+	return &models.UserFeed{
+		Feed:        subscription.Feed,
+		CustomTitle: subscription.CustomTitle,
+	}, nil
 }
 
 func (s *FeedService) UnsubscribeFromFeed(ctx context.Context, userID, feedID uint) error {

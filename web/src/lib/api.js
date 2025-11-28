@@ -129,6 +129,13 @@ export const feeds = {
 		apiFetch(`/feeds/${feedId}`, {
 			method: 'DELETE'
 		}),
+
+	// Update feed subscription (e.g., custom title)
+	update: (feedId, data) => 
+		apiFetch(`/feeds/${feedId}`, {
+			method: 'PATCH',
+			body: JSON.stringify(data)
+		}),
 	
 	// Get articles for a specific feed
 	getArticles: (feedId) => 

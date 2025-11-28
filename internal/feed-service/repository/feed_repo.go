@@ -58,6 +58,45 @@ func (r *FeedRepository) ListByUserID(ctx context.Context, userID uint) ([]*mode
 	return feeds, result.Error
 }
 
+func (r *FeedRepository) ListUserFeeds(ctx context.Context, userID uint) ([]*models.UserFeed, error) {
+	var subscriptions []models.Subscription
+	result := r.db.WithContext(ctx).
+		Preload("Feed").
+		Where("user_id = ?", userID).
+		Find(&subscriptions)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	userFeeds := make([]*models.UserFeed, 0, len(subscriptions))
+	for _, sub := range subscriptions {
+		userFeeds = append(userFeeds, &models.UserFeed{
+			Feed:        sub.Feed,
+			CustomTitle: sub.CustomTitle,
+		})
+	}
+	return userFeeds, nil
+}
+
+func (r *FeedRepository) GetSubscription(ctx context.Context, userID, feedID uint) (*models.Subscription, error) {
+	var subscription models.Subscription
+	result := r.db.WithContext(ctx).
+		Preload("Feed").
+		Where("user_id = ? AND feed_id = ?", userID, feedID).
+		First(&subscription)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &subscription, nil
+}
+
+func (r *FeedRepository) UpdateSubscriptionCustomTitle(ctx context.Context, userID, feedID uint, customTitle *string) error {
+	result := r.db.WithContext(ctx).Model(&models.Subscription{}).
+		Where("user_id = ? AND feed_id = ?", userID, feedID).
+		Update("custom_title", customTitle)
+	return result.Error
+}
+
 func (r *FeedRepository) UpdateStatus(ctx context.Context, feedID uint, status models.FeedStatus) error {
 	result := r.db.WithContext(ctx).Model(&models.Feed{}).
 		Where("id = ?", feedID).

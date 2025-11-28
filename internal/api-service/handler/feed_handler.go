@@ -146,6 +146,51 @@ func (h *FeedHandler) UnsubscribeFeed(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "successfully unsubscribed from feed"})
 }
 
+type UpdateFeedRequest struct {
+	CustomTitle *string `json:"custom_title"`
+}
+
+func (h *FeedHandler) UpdateFeed(c *gin.Context) {
+	ctx := c.Request.Context()
+	log := logger.FromContext(ctx)
+
+	userID, exists := GetUserIDFromContext(c)
+	if !exists {
+		log.Error("user not authenticated in protected route")
+		c.Error(ierr.ErrUnauthorized)
+		return
+	}
+
+	feedIDStr := c.Param("feed_id")
+	feedID, err := strconv.ParseUint(feedIDStr, 10, 32)
+	if err != nil {
+		log.Warn("invalid feed ID parameter", "feed_id_str", feedIDStr, "error", err.Error())
+		c.Error(ierr.ErrInvalidFeedID)
+		return
+	}
+
+	var req UpdateFeedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Warn("invalid request payload", "error", err.Error())
+		c.Error(ierr.NewValidationError(err.Error()))
+		return
+	}
+
+	log.Info("user updating feed subscription", "user_id", userID, "feed_id", feedID)
+
+	feed, err := h.feedService.UpdateFeedCustomTitle(ctx, userID, uint(feedID), req.CustomTitle)
+	if err != nil {
+		log.Error("failed to update feed subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		c.Error(err)
+		return
+	}
+
+	h.invalidateUserFeedsCache(ctx, userID)
+
+	log.Info("user successfully updated feed subscription", "user_id", userID, "feed_id", feedID)
+	c.JSON(http.StatusOK, feed)
+}
+
 // Keep the old method for backward compatibility (will be deprecated)
 func (h *FeedHandler) ListAllFeeds(c *gin.Context) {
 	// Get contextual logger for this request
@@ -168,7 +213,7 @@ func (h *FeedHandler) cacheKeyForUserFeeds(userID uint) string {
 	return fmt.Sprintf(userFeedsCacheKeyPattern, userID)
 }
 
-func (h *FeedHandler) getCachedUserFeeds(ctx context.Context, userID uint) ([]*models.Feed, bool) {
+func (h *FeedHandler) getCachedUserFeeds(ctx context.Context, userID uint) ([]*models.UserFeed, bool) {
 	if h.cache == nil {
 		return nil, false
 	}
@@ -182,7 +227,7 @@ func (h *FeedHandler) getCachedUserFeeds(ctx context.Context, userID uint) ([]*m
 		return nil, false
 	}
 
-	var feeds []*models.Feed
+	var feeds []*models.UserFeed
 	if err := json.Unmarshal([]byte(result), &feeds); err != nil {
 		logger.FromContext(ctx).Warn("failed to decode user feeds cache", "user_id", userID, "error", err.Error())
 		return nil, false
@@ -191,7 +236,7 @@ func (h *FeedHandler) getCachedUserFeeds(ctx context.Context, userID uint) ([]*m
 	return feeds, true
 }
 
-func (h *FeedHandler) setCachedUserFeeds(ctx context.Context, userID uint, feeds []*models.Feed) {
+func (h *FeedHandler) setCachedUserFeeds(ctx context.Context, userID uint, feeds []*models.UserFeed) {
 	if h.cache == nil {
 		return
 	}

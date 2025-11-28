@@ -13,6 +13,7 @@ message Feed {
   string created_at = 5;
   string updated_at = 6;
   string status = 7;  // Feed sync status: "pending", "active", "error"
+  optional string custom_title = 8;  // User-defined custom title for this feed
 }
 
 // Article message represents an individual article
@@ -153,6 +154,17 @@ message BatchSubscribeToFeedsResponse {
   int32 failed = 3;
 }
 
+// Update subscription (e.g., custom title)
+message UpdateSubscriptionRequest {
+  uint64 user_id = 1;
+  uint64 feed_id = 2;
+  optional string custom_title = 3;  // Set to empty string to clear custom title
+}
+
+message UpdateSubscriptionResponse {
+  Feed feed = 1;
+}
+
 // FeedService defines the gRPC service for feed management
 service FeedService {
   rpc SubscribeToFeed(SubscribeToFeedRequest) returns (SubscribeToFeedResponse);
@@ -181,4 +193,7 @@ service FeedService {
 
   // List articles that require background update checks
   rpc ListArticlesToCheck(ListArticlesToCheckRequest) returns (ListArticlesToCheckResponse);
+
+  // Update subscription settings (e.g., custom title)
+  rpc UpdateSubscription(UpdateSubscriptionRequest) returns (UpdateSubscriptionResponse);
 }

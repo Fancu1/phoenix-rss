@@ -2,14 +2,17 @@
 	import { createEventDispatcher } from 'svelte';
 	import { page } from '$app/stores';
 	import { feedsStore, uiStore } from '../stores.js';
+	import { feeds as feedsApi } from '../api.js';
 
 	const dispatch = createEventDispatcher();
 
-	// Get current feed ID from URL
 	$: currentFeedId = $page.params.feed_id ? parseInt($page.params.feed_id) : null;
 
+	let editingFeedId = null;
+	let editingTitle = '';
+
 	function getFeedTitle(feed) {
-		return feed.title || new URL(feed.url).hostname;
+		return feed.custom_title || feed.title || new URL(feed.url).hostname;
 	}
 
 	function getFeedDescription(feed) {
@@ -28,6 +31,48 @@
 
 	function handleAddSubscription() {
 		dispatch('add-subscription');
+	}
+
+	function startEditing(event, feed) {
+		event.preventDefault();
+		event.stopPropagation();
+		editingFeedId = feed.id;
+		editingTitle = feed.custom_title || feed.title || '';
+	}
+
+	async function saveTitle(feed) {
+		if (editingFeedId !== feed.id) return;
+		
+		try {
+			// If title is empty or same as original, clear custom_title
+			const newCustomTitle = editingTitle.trim() === '' || editingTitle.trim() === feed.title 
+				? null 
+				: editingTitle.trim();
+			
+			await feedsApi.update(feed.id, { custom_title: newCustomTitle });
+			feedsStore.update(feeds => 
+				feeds.map(f => f.id === feed.id ? { ...f, custom_title: newCustomTitle } : f)
+			);
+		} catch (error) {
+			console.error('Failed to update feed title:', error);
+			uiStore.addToast('error', 'Failed to update feed title');
+		} finally {
+			editingFeedId = null;
+			editingTitle = '';
+		}
+	}
+
+	function cancelEditing() {
+		editingFeedId = null;
+		editingTitle = '';
+	}
+
+	function handleKeydown(event, feed) {
+		if (event.key === 'Enter') {
+			saveTitle(feed);
+		} else if (event.key === 'Escape') {
+			cancelEditing();
+		}
 	}
 </script>
 
@@ -66,12 +111,34 @@
 						on:click={() => handleFeedClick(feed.id)}
 					>
 						<div class="feed-info">
-							<div class="feed-title">{getFeedTitle(feed)}</div>
+							{#if editingFeedId === feed.id}
+								<!-- svelte-ignore a11y-autofocus -->
+								<input
+									type="text"
+									class="edit-title-input"
+									bind:value={editingTitle}
+									on:blur={() => saveTitle(feed)}
+									on:keydown={(e) => handleKeydown(e, feed)}
+									on:click|stopPropagation
+									autofocus
+								/>
+							{:else}
+								<div class="feed-title">{getFeedTitle(feed)}</div>
+							{/if}
 							<div class="feed-description">{getFeedDescription(feed)}</div>
 						</div>
-						
-						<!-- Optional: Add unread count badge -->
-						<!-- <div class="unread-badge">3</div> -->
+
+						{#if editingFeedId !== feed.id}
+							<button 
+								class="edit-button"
+								on:click={(e) => startEditing(e, feed)}
+								title="Edit feed name"
+							>
+								<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+								</svg>
+							</button>
+						{/if}
 					</a>
 				{/each}
 			</div>
@@ -263,6 +330,45 @@
 		min-width: 18px;
 		text-align: center;
 		margin-left: var(--space-2);
+	}
+
+	.edit-button {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: var(--space-1);
+		border-radius: var(--radius-sm);
+		opacity: 0;
+		transition: opacity 0.2s ease, color 0.2s ease;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+	}
+
+	.feed-item:hover .edit-button {
+		opacity: 1;
+	}
+
+	.edit-button:hover {
+		color: var(--primary);
+	}
+
+	.edit-title-input {
+		width: 100%;
+		padding: var(--space-1) var(--space-2);
+		font-size: 0.875rem;
+		font-weight: 500;
+		border: 1px solid var(--primary);
+		border-radius: var(--radius-sm);
+		background: var(--bg);
+		color: var(--text);
+		outline: none;
+	}
+
+	.edit-title-input:focus {
+		box-shadow: 0 0 0 2px var(--primary-alpha);
 	}
 
 	.sidebar-overlay {

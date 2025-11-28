@@ -18,3 +18,9 @@ type Feed struct {
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
+
+// UserFeed represents a feed from the user's perspective, including custom title
+type UserFeed struct {
+	Feed
+	CustomTitle *string `json:"custom_title,omitempty"`
+}
