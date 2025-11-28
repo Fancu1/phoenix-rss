@@ -94,3 +94,46 @@ func (r *FeedRepository) IsUserSubscribed(ctx context.Context, userID, feedID ui
 		Count(&count)
 	return count > 0, result.Error
 }
+
+func (r *FeedRepository) GetByURLs(ctx context.Context, urls []string) ([]*models.Feed, error) {
+	if len(urls) == 0 {
+		return []*models.Feed{}, nil
+	}
+	feeds := make([]*models.Feed, 0, len(urls))
+	result := r.db.WithContext(ctx).Where("url IN ?", urls).Find(&feeds)
+	return feeds, result.Error
+}
+
+func (r *FeedRepository) BatchCreateFeeds(ctx context.Context, feeds []*models.Feed) error {
+	if len(feeds) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).CreateInBatches(feeds, 100).Error
+}
+
+func (r *FeedRepository) GetUserSubscriptionsByFeedIDs(ctx context.Context, userID uint, feedIDs []uint) (map[uint]bool, error) {
+	if len(feedIDs) == 0 {
+		return make(map[uint]bool), nil
+	}
+
+	var subscriptions []models.Subscription
+	result := r.db.WithContext(ctx).
+		Where("user_id = ? AND feed_id IN ?", userID, feedIDs).
+		Find(&subscriptions)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	subscribed := make(map[uint]bool, len(subscriptions))
+	for _, sub := range subscriptions {
+		subscribed[sub.FeedID] = true
+	}
+	return subscribed, nil
+}
+
+func (r *FeedRepository) BatchCreateSubscriptions(ctx context.Context, subscriptions []*models.Subscription) error {
+	if len(subscriptions) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).CreateInBatches(subscriptions, 100).Error
+}

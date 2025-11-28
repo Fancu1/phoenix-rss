@@ -67,6 +67,10 @@ func (m *MockFeedServiceClient) CheckSubscription(ctx context.Context, req *feed
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
+func (m *MockFeedServiceClient) BatchSubscribeToFeeds(ctx context.Context, req *feedpb.BatchSubscribeToFeedsRequest, opts ...grpc.CallOption) (*feedpb.BatchSubscribeToFeedsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
 func TestFeedServiceClient_GetAllFeeds_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 

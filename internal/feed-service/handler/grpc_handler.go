@@ -38,8 +38,6 @@ func NewFeedServiceHandler(
 	}
 }
 
-// SubscribeToFeed create a subscription
-// Note: FeedService now handles publishing feed.fetch event internally
 func (h *FeedServiceHandler) SubscribeToFeed(ctx context.Context, req *feedpb.SubscribeToFeedRequest) (*feedpb.SubscribeToFeedResponse, error) {
 	log := logger.FromContext(ctx)
 	log.Info("gRPC: SubscribeToFeed", "user_id", req.UserId, "feed_url", req.FeedUrl)
@@ -69,6 +67,60 @@ func (h *FeedServiceHandler) SubscribeToFeed(ctx context.Context, req *feedpb.Su
 
 	log.Info("successfully subscribed user to feed", "user_id", req.UserId, "feed_id", feed.ID)
 	return &feedpb.SubscribeToFeedResponse{Feed: pbFeed}, nil
+}
+
+func (h *FeedServiceHandler) BatchSubscribeToFeeds(ctx context.Context, req *feedpb.BatchSubscribeToFeedsRequest) (*feedpb.BatchSubscribeToFeedsResponse, error) {
+	log := logger.FromContext(ctx)
+	log.Info("gRPC: BatchSubscribeToFeeds", "user_id", req.UserId, "url_count", len(req.FeedUrls))
+
+	if req.UserId == 0 {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+	if len(req.FeedUrls) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "feed_urls is required")
+	}
+
+	results, err := h.feedService.BatchSubscribeToFeeds(ctx, uint(req.UserId), req.FeedUrls)
+	if err != nil {
+		log.Error("failed to batch subscribe to feeds", "user_id", req.UserId, "error", err.Error())
+		return nil, h.mapErrorToGRPC(err)
+	}
+
+	pbResults := make([]*feedpb.BatchSubscribeResult, len(results))
+	var imported, failed int32
+
+	for i, r := range results {
+		pbResult := &feedpb.BatchSubscribeResult{
+			Url:     r.URL,
+			Success: r.Success,
+			Error:   r.Error,
+		}
+		if r.Feed != nil {
+			pbResult.Feed = &feedpb.Feed{
+				Id:          uint64(r.Feed.ID),
+				Title:       r.Feed.Title,
+				Url:         r.Feed.URL,
+				Description: r.Feed.Description,
+				Status:      string(r.Feed.Status),
+				CreatedAt:   r.Feed.CreatedAt.Format(time.RFC3339),
+				UpdatedAt:   r.Feed.UpdatedAt.Format(time.RFC3339),
+			}
+		}
+		pbResults[i] = pbResult
+
+		if r.Success {
+			imported++
+		} else if r.Error != "" {
+			failed++
+		}
+	}
+
+	log.Info("batch subscribe completed", "user_id", req.UserId, "imported", imported, "failed", failed)
+	return &feedpb.BatchSubscribeToFeedsResponse{
+		Results:  pbResults,
+		Imported: imported,
+		Failed:   failed,
+	}, nil
 }
 
 // ListUserFeeds return active feeds subscribed by a specific user (pending feeds are hidden)

@@ -250,7 +250,6 @@ func TestOPMLHandler_ImportOPML(t *testing.T) {
 		name           string
 		userID         uint
 		feeds          []core.OPMLFeedItem
-		subscribeErr   error
 		expectStatus   int
 		expectImported int
 		expectFailed   int
@@ -261,7 +260,6 @@ func TestOPMLHandler_ImportOPML(t *testing.T) {
 			feeds: []core.OPMLFeedItem{
 				{Title: "Feed 1", URL: "https://example1.com/feed.xml"},
 			},
-			subscribeErr:   nil,
 			expectStatus:   http.StatusOK,
 			expectImported: 1,
 			expectFailed:   0,
@@ -273,7 +271,6 @@ func TestOPMLHandler_ImportOPML(t *testing.T) {
 				{Title: "Feed 1", URL: "https://example1.com/feed.xml"},
 				{Title: "Feed 2", URL: "https://example2.com/feed.xml"},
 			},
-			subscribeErr:   nil,
 			expectStatus:   http.StatusOK,
 			expectImported: 2,
 			expectFailed:   0,
@@ -283,12 +280,19 @@ func TestOPMLHandler_ImportOPML(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stub := &stubFeedService{
-				subscribeToFeedFn: func(ctx context.Context, userID uint, url string) (*models.Feed, error) {
+				batchSubscribeToFeedsFn: func(ctx context.Context, userID uint, urls []string) ([]core.BatchSubscribeResult, int, int, error) {
 					require.Equal(t, tt.userID, userID)
-					if tt.subscribeErr != nil {
-						return nil, tt.subscribeErr
+					require.Equal(t, len(tt.feeds), len(urls))
+
+					results := make([]core.BatchSubscribeResult, len(urls))
+					for i, url := range urls {
+						results[i] = core.BatchSubscribeResult{
+							URL:     url,
+							Success: true,
+							Feed:    &models.Feed{ID: uint(i + 1), Title: "Imported", URL: url},
+						}
 					}
-					return &models.Feed{ID: 1, Title: "Imported", URL: url}, nil
+					return results, len(urls), 0, nil
 				},
 			}
 

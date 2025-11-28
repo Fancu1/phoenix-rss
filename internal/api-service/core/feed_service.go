@@ -12,10 +12,19 @@ import (
 	feedpb "github.com/Fancu1/phoenix-rss/protos/gen/go/feed"
 )
 
+// BatchSubscribeResult represents the result of a single feed subscription attempt
+type BatchSubscribeResult struct {
+	URL     string
+	Success bool
+	Error   string
+	Feed    *models.Feed
+}
+
 // FeedServiceInterface define the interface for feed operations
 type FeedServiceInterface interface {
 	ListAllFeeds(ctx context.Context) ([]*models.Feed, error)
 	SubscribeToFeed(ctx context.Context, userID uint, url string) (*models.Feed, error)
+	BatchSubscribeToFeeds(ctx context.Context, userID uint, urls []string) (results []BatchSubscribeResult, imported, failed int, err error)
 	ListUserFeeds(ctx context.Context, userID uint) ([]*models.Feed, error)
 	UnsubscribeFromFeed(ctx context.Context, userID, feedID uint) error
 	IsUserSubscribed(ctx context.Context, userID, feedID uint) (bool, error)
@@ -131,6 +140,36 @@ func (c *FeedServiceClient) IsUserSubscribed(ctx context.Context, userID, feedID
 	}
 
 	return resp.IsSubscribed, nil
+}
+
+func (c *FeedServiceClient) BatchSubscribeToFeeds(ctx context.Context, userID uint, urls []string) ([]BatchSubscribeResult, int, int, error) {
+	req := &feedpb.BatchSubscribeToFeedsRequest{
+		UserId:   uint64(userID),
+		FeedUrls: urls,
+	}
+
+	resp, err := c.client.BatchSubscribeToFeeds(ctx, req)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("failed to batch subscribe to feeds: %w", err)
+	}
+
+	results := make([]BatchSubscribeResult, len(resp.Results))
+	for i, pbResult := range resp.Results {
+		result := BatchSubscribeResult{
+			URL:     pbResult.Url,
+			Success: pbResult.Success,
+			Error:   pbResult.Error,
+		}
+		if pbResult.Feed != nil {
+			feed, err := c.convertPbToFeed(pbResult.Feed)
+			if err == nil {
+				result.Feed = feed
+			}
+		}
+		results[i] = result
+	}
+
+	return results, int(resp.Imported), int(resp.Failed), nil
 }
 
 // Helper method for protobuf conversion

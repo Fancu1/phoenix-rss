@@ -17,19 +17,21 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/models"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
 type stubFeedService struct {
-	listUserFeedsFn        func(ctx context.Context, userID uint) ([]*models.Feed, error)
-	subscribeToFeedFn      func(ctx context.Context, userID uint, url string) (*models.Feed, error)
-	unsubscribeFromFeedFn  func(ctx context.Context, userID, feedID uint) error
-	listAllFeedsFn         func(ctx context.Context) ([]*models.Feed, error)
-	isUserSubscribedFn     func(ctx context.Context, userID, feedID uint) (bool, error)
-	listUserFeedsCalls     int
-	subscribeToFeedCalls   int
-	unsubscribeFromCalls   int
+	listUserFeedsFn         func(ctx context.Context, userID uint) ([]*models.Feed, error)
+	subscribeToFeedFn       func(ctx context.Context, userID uint, url string) (*models.Feed, error)
+	batchSubscribeToFeedsFn func(ctx context.Context, userID uint, urls []string) ([]core.BatchSubscribeResult, int, int, error)
+	unsubscribeFromFeedFn   func(ctx context.Context, userID, feedID uint) error
+	listAllFeedsFn          func(ctx context.Context) ([]*models.Feed, error)
+	isUserSubscribedFn      func(ctx context.Context, userID, feedID uint) (bool, error)
+	listUserFeedsCalls      int
+	subscribeToFeedCalls    int
+	unsubscribeFromCalls    int
 }
 
 func (s *stubFeedService) ListAllFeeds(ctx context.Context) ([]*models.Feed, error) {
@@ -68,6 +70,13 @@ func (s *stubFeedService) IsUserSubscribed(ctx context.Context, userID, feedID u
 		return s.isUserSubscribedFn(ctx, userID, feedID)
 	}
 	return false, errors.New("not implemented")
+}
+
+func (s *stubFeedService) BatchSubscribeToFeeds(ctx context.Context, userID uint, urls []string) ([]core.BatchSubscribeResult, int, int, error) {
+	if s.batchSubscribeToFeedsFn != nil {
+		return s.batchSubscribeToFeedsFn(ctx, userID, urls)
+	}
+	return nil, 0, 0, errors.New("not implemented")
 }
 
 func newTestContext(method, path string, body io.Reader) (*gin.Context, *httptest.ResponseRecorder) {

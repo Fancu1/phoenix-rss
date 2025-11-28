@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Fancu1/phoenix-rss/internal/events"
+	"github.com/Fancu1/phoenix-rss/internal/feed-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/models"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/repository"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
@@ -78,6 +79,9 @@ func (noopFeedService) UnsubscribeFromFeed(ctx context.Context, userID, feedID u
 }
 func (noopFeedService) IsUserSubscribed(ctx context.Context, userID, feedID uint) (bool, error) {
 	return false, nil
+}
+func (noopFeedService) BatchSubscribeToFeeds(ctx context.Context, userID uint, urls []string) ([]core.BatchSubscribeResult, error) {
+	return nil, nil
 }
 
 func TestListArticlesToCheck_Success(t *testing.T) {

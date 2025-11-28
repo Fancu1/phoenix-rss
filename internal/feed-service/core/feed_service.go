@@ -15,10 +15,19 @@ import (
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
+// BatchSubscribeResult represents the result of a single feed subscription attempt
+type BatchSubscribeResult struct {
+	URL     string
+	Success bool
+	Error   string
+	Feed    *models.Feed
+}
+
 type FeedServiceInterface interface {
 	AddFeedByURL(ctx context.Context, url string) (*models.Feed, error)
 	ListAllFeeds(ctx context.Context) ([]*models.Feed, error)
 	SubscribeToFeed(ctx context.Context, userID uint, url string) (*models.Feed, error)
+	BatchSubscribeToFeeds(ctx context.Context, userID uint, urls []string) ([]BatchSubscribeResult, error)
 	ListUserFeeds(ctx context.Context, userID uint) ([]*models.Feed, error)
 	UnsubscribeFromFeed(ctx context.Context, userID, feedID uint) error
 	IsUserSubscribed(ctx context.Context, userID, feedID uint) (bool, error)
@@ -228,4 +237,148 @@ func (s *FeedService) IsUserSubscribed(ctx context.Context, userID, feedID uint)
 
 	log.Debug("subscription check completed", "user_id", userID, "feed_id", feedID, "is_subscribed", isSubscribed)
 	return isSubscribed, nil
+}
+
+// BatchSubscribeToFeeds subscribes a user to multiple feeds in a single batch operation.
+func (s *FeedService) BatchSubscribeToFeeds(ctx context.Context, userID uint, urls []string) ([]BatchSubscribeResult, error) {
+	log := logger.FromContext(ctx)
+	log.Info("batch subscribing user to feeds", "user_id", userID, "url_count", len(urls))
+
+	if len(urls) == 0 {
+		return []BatchSubscribeResult{}, nil
+	}
+
+	// Deduplicate URLs and build index mapping
+	urlSet := make(map[string]bool, len(urls))
+	uniqueURLs := make([]string, 0, len(urls))
+	results := make([]BatchSubscribeResult, len(urls))
+	urlToIndex := make(map[string][]int, len(urls))
+
+	for i, url := range urls {
+		if urlSet[url] {
+			results[i] = BatchSubscribeResult{URL: url, Success: false, Error: "duplicate URL in import"}
+			continue
+		}
+		urlSet[url] = true
+		uniqueURLs = append(uniqueURLs, url)
+		urlToIndex[url] = append(urlToIndex[url], i)
+	}
+
+	// Query existing feeds
+	existingFeeds, err := s.repo.GetByURLs(ctx, uniqueURLs)
+	if err != nil {
+		log.Error("failed to batch query existing feeds", "error", err.Error())
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to query existing feeds: %w", err))
+	}
+
+	urlToFeed := make(map[string]*models.Feed, len(existingFeeds))
+	for _, feed := range existingFeeds {
+		urlToFeed[feed.URL] = feed
+	}
+
+	// Create new feeds for URLs not in database
+	newFeedURLSet := make(map[string]bool)
+	newFeedsToCreate := make([]*models.Feed, 0)
+	now := time.Now()
+
+	for _, url := range uniqueURLs {
+		if _, exists := urlToFeed[url]; !exists {
+			newFeedsToCreate = append(newFeedsToCreate, &models.Feed{
+				Title:     url,
+				URL:       url,
+				Status:    models.FeedStatusActive,
+				CreatedAt: now,
+				UpdatedAt: now,
+			})
+			newFeedURLSet[url] = true
+		}
+	}
+
+	if len(newFeedsToCreate) > 0 {
+		if err := s.repo.BatchCreateFeeds(ctx, newFeedsToCreate); err != nil {
+			log.Error("failed to batch create feeds", "error", err.Error())
+			return nil, ierr.NewDatabaseError(fmt.Errorf("failed to create feeds: %w", err))
+		}
+		for _, feed := range newFeedsToCreate {
+			urlToFeed[feed.URL] = feed
+		}
+	}
+
+	// Check existing subscriptions
+	allFeedIDs := make([]uint, 0, len(uniqueURLs))
+	for _, url := range uniqueURLs {
+		if feed, ok := urlToFeed[url]; ok {
+			allFeedIDs = append(allFeedIDs, feed.ID)
+		}
+	}
+
+	existingSubscriptions, err := s.repo.GetUserSubscriptionsByFeedIDs(ctx, userID, allFeedIDs)
+	if err != nil {
+		log.Error("failed to query existing subscriptions", "error", err.Error())
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to query subscriptions: %w", err))
+	}
+
+	// Create subscriptions and build results
+	newSubscriptions := make([]*models.Subscription, 0)
+	feedsNeedingFetch := make([]uint, 0)
+
+	for _, url := range uniqueURLs {
+		feed, ok := urlToFeed[url]
+		if !ok {
+			for _, idx := range urlToIndex[url] {
+				results[idx] = BatchSubscribeResult{URL: url, Success: false, Error: "feed not found"}
+			}
+			continue
+		}
+
+		if existingSubscriptions[feed.ID] {
+			for _, idx := range urlToIndex[url] {
+				results[idx] = BatchSubscribeResult{URL: url, Success: false, Error: "already subscribed", Feed: feed}
+			}
+			continue
+		}
+
+		newSubscriptions = append(newSubscriptions, &models.Subscription{
+			UserID: userID,
+			FeedID: feed.ID,
+		})
+
+		if newFeedURLSet[url] {
+			feedsNeedingFetch = append(feedsNeedingFetch, feed.ID)
+		}
+
+		for _, idx := range urlToIndex[url] {
+			results[idx] = BatchSubscribeResult{URL: url, Success: true, Feed: feed}
+		}
+	}
+
+	if len(newSubscriptions) > 0 {
+		if err := s.repo.BatchCreateSubscriptions(ctx, newSubscriptions); err != nil {
+			log.Error("failed to batch create subscriptions", "error", err.Error())
+			return nil, ierr.NewDatabaseError(fmt.Errorf("failed to create subscriptions: %w", err))
+		}
+	}
+
+	// Trigger async feed fetch for new feeds
+	if s.producer != nil && len(feedsNeedingFetch) > 0 {
+		go func() {
+			for _, feedID := range feedsNeedingFetch {
+				if err := s.producer.PublishFeedFetch(context.Background(), feedID); err != nil {
+					s.logger.Warn("failed to publish feed fetch event", "feed_id", feedID, "error", err.Error())
+				}
+			}
+		}()
+	}
+
+	imported, failed := 0, 0
+	for _, r := range results {
+		if r.Success {
+			imported++
+		} else if r.Error != "" {
+			failed++
+		}
+	}
+
+	log.Info("batch subscribe completed", "user_id", userID, "imported", imported, "failed", failed)
+	return results, nil
 }

@@ -135,10 +135,28 @@ message CheckSubscriptionResponse {
   bool is_subscribed = 1;
 }
 
+message BatchSubscribeToFeedsRequest {
+  uint64 user_id = 1;
+  repeated string feed_urls = 2;
+}
+
+message BatchSubscribeResult {
+  string url = 1;
+  bool success = 2;
+  string error = 3;
+  Feed feed = 4;
+}
+
+message BatchSubscribeToFeedsResponse {
+  repeated BatchSubscribeResult results = 1;
+  int32 imported = 2;
+  int32 failed = 3;
+}
+
 // FeedService defines the gRPC service for feed management
 service FeedService {
-  // Subscribe user to a new RSS feed
   rpc SubscribeToFeed(SubscribeToFeedRequest) returns (SubscribeToFeedResponse);
+  rpc BatchSubscribeToFeeds(BatchSubscribeToFeedsRequest) returns (BatchSubscribeToFeedsResponse);
   
   // Get all feeds subscribed by a specific user
   rpc ListUserFeeds(ListUserFeedsRequest) returns (ListUserFeedsResponse);

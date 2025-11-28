@@ -177,26 +177,37 @@ func (h *OPMLHandler) ImportOPML(c *gin.Context) {
 
 	log.Info("user importing feeds from OPML", "user_id", userID, "feed_count", len(req.Feeds))
 
+	urls := make([]string, len(req.Feeds))
+	for i, feedItem := range req.Feeds {
+		urls[i] = feedItem.URL
+	}
+
+	results, imported, failed, err := h.feedService.BatchSubscribeToFeeds(ctx, userID, urls)
+	if err != nil {
+		log.Error("batch subscribe failed", "user_id", userID, "error", err.Error())
+		c.Error(err)
+		return
+	}
+
 	result := core.OPMLImportResult{
+		Imported:   imported,
+		Failed:     failed,
 		SkippedIDs: make([]string, 0),
 		FailedIDs:  make([]string, 0),
 	}
 
-	for _, feedItem := range req.Feeds {
-		_, err := h.feedService.SubscribeToFeed(ctx, userID, feedItem.URL)
-		if err != nil {
-			log.Warn("failed to import feed",
-				"user_id", userID,
-				"url", feedItem.URL,
-				"error", err.Error())
-			result.Failed++
-			result.FailedIDs = append(result.FailedIDs, feedItem.URL)
-		} else {
-			result.Imported++
+	for _, r := range results {
+		if !r.Success && r.Error != "" {
+			if r.Error == "already subscribed" {
+				result.Skipped++
+				result.SkippedIDs = append(result.SkippedIDs, r.URL)
+			} else {
+				result.FailedIDs = append(result.FailedIDs, r.URL)
+			}
 		}
 	}
 
-	if result.Imported > 0 {
+	if imported > 0 {
 		h.invalidateUserFeedsCache(ctx, userID)
 	}
 
