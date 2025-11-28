@@ -3,20 +3,20 @@ package server
 import (
 	"fmt"
 	"io/fs"
-	"log/slog"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 
 	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/api-service/handler"
+	"github.com/Fancu1/phoenix-rss/internal/api-service/repository"
 	"github.com/Fancu1/phoenix-rss/internal/config"
 )
 
 type Server struct {
 	config          *config.Config
 	engine          *gin.Engine
-	logger          *slog.Logger
 	feedHandler     *handler.FeedHandler
 	articleHandler  *handler.ArticleHandler
 	userHandler     *handler.UserHandler
@@ -25,11 +25,14 @@ type Server struct {
 	frontendHandler *handler.StaticFrontendHandler
 }
 
-func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceInterface, articleService core.ArticleServiceInterface, userService core.UserServiceInterface, redisClient *redis.Client, staticFS fs.FS) (*Server, error) {
-	feedHandler := handler.NewFeedHandler(feedService, redisClient)
-	articleHandler := handler.NewArticleHandler(logger, articleService)
+func New(cfg *config.Config, db *gorm.DB, feedService core.FeedServiceInterface, articleService core.ArticleServiceInterface, userService core.UserServiceInterface, redisClient *redis.Client, staticFS fs.FS) (*Server, error) {
+	subscriptionRepo := repository.NewSubscriptionRepository(db)
+	articleRepo := repository.NewArticleRepository(db)
+
+	feedHandler := handler.NewFeedHandler(feedService, subscriptionRepo, redisClient)
+	articleHandler := handler.NewArticleHandler(articleService, subscriptionRepo, articleRepo)
 	userHandler := handler.NewUserHandler(userService)
-	opmlHandler := handler.NewOPMLHandler(feedService, redisClient)
+	opmlHandler := handler.NewOPMLHandler(feedService, subscriptionRepo, redisClient)
 	authMiddleware := handler.NewAuthMiddleware(cfg.Auth.JWTSecret)
 	frontendHandler, err := handler.NewStaticFrontendHandler(staticFS)
 	if err != nil {

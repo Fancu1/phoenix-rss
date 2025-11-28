@@ -12,20 +12,23 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
+	"github.com/Fancu1/phoenix-rss/internal/api-service/repository"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/models"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
 type FeedHandler struct {
-	feedService core.FeedServiceInterface
-	cache       redis.Cmdable
+	feedService      core.FeedServiceInterface
+	subscriptionRepo *repository.SubscriptionRepository
+	cache            redis.Cmdable
 }
 
-func NewFeedHandler(feedService core.FeedServiceInterface, cache redis.Cmdable) *FeedHandler {
+func NewFeedHandler(feedService core.FeedServiceInterface, subscriptionRepo *repository.SubscriptionRepository, cache redis.Cmdable) *FeedHandler {
 	return &FeedHandler{
-		feedService: feedService,
-		cache:       cache,
+		feedService:      feedService,
+		subscriptionRepo: subscriptionRepo,
+		cache:            cache,
 	}
 }
 
@@ -73,76 +76,66 @@ func (h *FeedHandler) AddFeed(c *gin.Context) {
 	c.JSON(http.StatusCreated, feed)
 }
 
-// ListFeeds now returns only feeds subscribed by the authenticated user
 func (h *FeedHandler) ListFeeds(c *gin.Context) {
-	// Get contextual logger for this request
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
 
-	// Get user ID from context
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
-		log.Error("user not authenticated in protected route")
 		c.Error(ierr.ErrUnauthorized)
 		return
 	}
 
-	log.Info("user requesting feed list", "user_id", userID)
-
 	if cachedFeeds, ok := h.getCachedUserFeeds(ctx, userID); ok {
-		log.Info("user feeds cache hit", "user_id", userID, "feed_count", len(cachedFeeds))
 		c.JSON(http.StatusOK, cachedFeeds)
 		return
 	}
 
-	feeds, err := h.feedService.ListUserFeeds(ctx, userID)
+	feeds, err := h.subscriptionRepo.ListUserFeeds(ctx, userID)
 	if err != nil {
 		log.Error("failed to list user feeds", "user_id", userID, "error", err.Error())
-		c.Error(err)
+		c.Error(ierr.NewDatabaseError(err))
 		return
 	}
 
 	h.setCachedUserFeeds(ctx, userID, feeds)
-
-	log.Info("successfully retrieved user feeds", "user_id", userID, "feed_count", len(feeds))
 	c.JSON(http.StatusOK, feeds)
 }
 
-// UnsubscribeFeed removes a subscription between user and feed
 func (h *FeedHandler) UnsubscribeFeed(c *gin.Context) {
-	// Get contextual logger for this request
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
 
-	// Get user ID from context
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
-		log.Error("user not authenticated in protected route")
 		c.Error(ierr.ErrUnauthorized)
 		return
 	}
 
-	// Get feed ID from URL parameter
-	feedIDStr := c.Param("feed_id")
-	feedID, err := strconv.ParseUint(feedIDStr, 10, 32)
+	feedID, err := strconv.ParseUint(c.Param("feed_id"), 10, 32)
 	if err != nil {
-		log.Warn("invalid feed ID parameter", "feed_id_str", feedIDStr, "error", err.Error())
 		c.Error(ierr.ErrInvalidFeedID)
 		return
 	}
 
-	log.Info("user attempting to unsubscribe from feed", "user_id", userID, "feed_id", feedID)
-
-	err = h.feedService.UnsubscribeFromFeed(ctx, userID, uint(feedID))
+	subscribed, err := h.subscriptionRepo.IsUserSubscribed(ctx, userID, uint(feedID))
 	if err != nil {
-		log.Error("failed to unsubscribe from feed", "user_id", userID, "feed_id", feedID, "error", err.Error())
-		c.Error(err)
+		log.Error("failed to check subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		c.Error(ierr.NewDatabaseError(err))
+		return
+	}
+	if !subscribed {
+		c.Error(ierr.ErrNotSubscribed)
+		return
+	}
+
+	if err := h.subscriptionRepo.Delete(ctx, userID, uint(feedID)); err != nil {
+		log.Error("failed to delete subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		c.Error(ierr.NewDatabaseError(err))
 		return
 	}
 
 	h.invalidateUserFeedsCache(ctx, userID)
-
-	log.Info("user successfully unsubscribed from feed", "user_id", userID, "feed_id", feedID)
 	c.JSON(http.StatusOK, gin.H{"message": "successfully unsubscribed from feed"})
 }
 
@@ -156,39 +149,51 @@ func (h *FeedHandler) UpdateFeed(c *gin.Context) {
 
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
-		log.Error("user not authenticated in protected route")
 		c.Error(ierr.ErrUnauthorized)
 		return
 	}
 
-	feedIDStr := c.Param("feed_id")
-	feedID, err := strconv.ParseUint(feedIDStr, 10, 32)
+	feedID, err := strconv.ParseUint(c.Param("feed_id"), 10, 32)
 	if err != nil {
-		log.Warn("invalid feed ID parameter", "feed_id_str", feedIDStr, "error", err.Error())
 		c.Error(ierr.ErrInvalidFeedID)
 		return
 	}
 
 	var req UpdateFeedRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Warn("invalid request payload", "error", err.Error())
 		c.Error(ierr.NewValidationError(err.Error()))
 		return
 	}
 
-	log.Info("user updating feed subscription", "user_id", userID, "feed_id", feedID)
-
-	feed, err := h.feedService.UpdateFeedCustomTitle(ctx, userID, uint(feedID), req.CustomTitle)
+	subscribed, err := h.subscriptionRepo.IsUserSubscribed(ctx, userID, uint(feedID))
 	if err != nil {
-		log.Error("failed to update feed subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
-		c.Error(err)
+		log.Error("failed to check subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		c.Error(ierr.NewDatabaseError(err))
+		return
+	}
+	if !subscribed {
+		c.Error(ierr.ErrNotSubscribed)
+		return
+	}
+
+	if err := h.subscriptionRepo.UpdateCustomTitle(ctx, userID, uint(feedID), req.CustomTitle); err != nil {
+		log.Error("failed to update custom title", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		c.Error(ierr.NewDatabaseError(err))
+		return
+	}
+
+	sub, err := h.subscriptionRepo.GetWithFeed(ctx, userID, uint(feedID))
+	if err != nil {
+		log.Error("failed to get subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		c.Error(ierr.NewDatabaseError(err))
 		return
 	}
 
 	h.invalidateUserFeedsCache(ctx, userID)
-
-	log.Info("user successfully updated feed subscription", "user_id", userID, "feed_id", feedID)
-	c.JSON(http.StatusOK, feed)
+	c.JSON(http.StatusOK, &models.UserFeed{
+		Feed:        sub.Feed,
+		CustomTitle: sub.CustomTitle,
+	})
 }
 
 // Keep the old method for backward compatibility (will be deprecated)

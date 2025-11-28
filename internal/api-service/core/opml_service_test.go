@@ -13,13 +13,13 @@ func TestOPMLService_GenerateOPML(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		feeds    []*models.Feed
+		feeds    []*models.UserFeed
 		username string
-		want     []string // strings that should be in the output
+		want     []string
 	}{
 		{
 			name:     "empty feeds",
-			feeds:    []*models.Feed{},
+			feeds:    []*models.UserFeed{},
 			username: "testuser",
 			want: []string{
 				`<?xml version="1.0" encoding="UTF-8"?>`,
@@ -31,12 +31,8 @@ func TestOPMLService_GenerateOPML(t *testing.T) {
 		},
 		{
 			name: "single feed",
-			feeds: []*models.Feed{
-				{
-					ID:    1,
-					Title: "Test Feed",
-					URL:   "https://example.com/feed.xml",
-				},
+			feeds: []*models.UserFeed{
+				{Feed: models.Feed{ID: 1, Title: "Test Feed", URL: "https://example.com/feed.xml"}},
 			},
 			username: "testuser",
 			want: []string{
@@ -48,9 +44,9 @@ func TestOPMLService_GenerateOPML(t *testing.T) {
 		},
 		{
 			name: "multiple feeds",
-			feeds: []*models.Feed{
-				{ID: 1, Title: "Feed 1", URL: "https://example1.com/feed.xml"},
-				{ID: 2, Title: "Feed 2", URL: "https://example2.com/feed.xml"},
+			feeds: []*models.UserFeed{
+				{Feed: models.Feed{ID: 1, Title: "Feed 1", URL: "https://example1.com/feed.xml"}},
+				{Feed: models.Feed{ID: 2, Title: "Feed 2", URL: "https://example2.com/feed.xml"}},
 			},
 			username: "testuser",
 			want: []string{
@@ -62,18 +58,14 @@ func TestOPMLService_GenerateOPML(t *testing.T) {
 		},
 		{
 			name: "feed with special characters",
-			feeds: []*models.Feed{
-				{
-					ID:    1,
-					Title: "Feed with <special> & \"characters\"",
-					URL:   "https://example.com/feed.xml?foo=bar&baz=qux",
-				},
+			feeds: []*models.UserFeed{
+				{Feed: models.Feed{ID: 1, Title: "Feed with <special> & \"characters\"", URL: "https://example.com/feed.xml?foo=bar&baz=qux"}},
 			},
 			username: "testuser",
 			want: []string{
-				`&lt;special&gt;`, // < and > should be escaped
-				`&amp;`,           // & should be escaped
-				`&#34;`,           // " is escaped as numeric entity by Go's XML encoder
+				`&lt;special&gt;`,
+				`&amp;`,
+				`&#34;`,
 			},
 		},
 	}
@@ -234,7 +226,7 @@ func TestOPMLService_FilterDuplicates(t *testing.T) {
 	tests := []struct {
 		name           string
 		parsedFeeds    []OPMLFeedItem
-		existingFeeds  []*models.Feed
+		existingFeeds  []*models.UserFeed
 		wantToImport   int
 		wantDuplicates int
 	}{
@@ -244,7 +236,7 @@ func TestOPMLService_FilterDuplicates(t *testing.T) {
 				{Title: "Feed 1", URL: "https://example1.com/feed.xml"},
 				{Title: "Feed 2", URL: "https://example2.com/feed.xml"},
 			},
-			existingFeeds:  []*models.Feed{},
+			existingFeeds:  []*models.UserFeed{},
 			wantToImport:   2,
 			wantDuplicates: 0,
 		},
@@ -253,8 +245,8 @@ func TestOPMLService_FilterDuplicates(t *testing.T) {
 			parsedFeeds: []OPMLFeedItem{
 				{Title: "Feed 1", URL: "https://example1.com/feed.xml"},
 			},
-			existingFeeds: []*models.Feed{
-				{ID: 1, Title: "Feed 1", URL: "https://example1.com/feed.xml"},
+			existingFeeds: []*models.UserFeed{
+				{Feed: models.Feed{ID: 1, Title: "Feed 1", URL: "https://example1.com/feed.xml"}},
 			},
 			wantToImport:   0,
 			wantDuplicates: 1,
@@ -266,8 +258,8 @@ func TestOPMLService_FilterDuplicates(t *testing.T) {
 				{Title: "Feed 2", URL: "https://example2.com/feed.xml"},
 				{Title: "Feed 3", URL: "https://example3.com/feed.xml"},
 			},
-			existingFeeds: []*models.Feed{
-				{ID: 1, Title: "Feed 1", URL: "https://example1.com/feed.xml"},
+			existingFeeds: []*models.UserFeed{
+				{Feed: models.Feed{ID: 1, Title: "Feed 1", URL: "https://example1.com/feed.xml"}},
 			},
 			wantToImport:   2,
 			wantDuplicates: 1,
@@ -277,8 +269,8 @@ func TestOPMLService_FilterDuplicates(t *testing.T) {
 			parsedFeeds: []OPMLFeedItem{
 				{Title: "Feed 1", URL: "HTTPS://EXAMPLE.COM/FEED.XML"},
 			},
-			existingFeeds: []*models.Feed{
-				{ID: 1, Title: "Feed 1", URL: "https://example.com/feed.xml"},
+			existingFeeds: []*models.UserFeed{
+				{Feed: models.Feed{ID: 1, Title: "Feed 1", URL: "https://example.com/feed.xml"}},
 			},
 			wantToImport:   0,
 			wantDuplicates: 1,
@@ -288,8 +280,8 @@ func TestOPMLService_FilterDuplicates(t *testing.T) {
 			parsedFeeds: []OPMLFeedItem{
 				{Title: "Feed 1", URL: "https://example.com/feed/"},
 			},
-			existingFeeds: []*models.Feed{
-				{ID: 1, Title: "Feed 1", URL: "https://example.com/feed"},
+			existingFeeds: []*models.UserFeed{
+				{Feed: models.Feed{ID: 1, Title: "Feed 1", URL: "https://example.com/feed"}},
 			},
 			wantToImport:   0,
 			wantDuplicates: 1,
@@ -300,7 +292,7 @@ func TestOPMLService_FilterDuplicates(t *testing.T) {
 				{Title: "Feed 1", URL: "https://example1.com/feed.xml"},
 				{Title: "Feed 1 Duplicate", URL: "https://example1.com/feed.xml"},
 			},
-			existingFeeds:  []*models.Feed{},
+			existingFeeds:  []*models.UserFeed{},
 			wantToImport:   1,
 			wantDuplicates: 1,
 		},
@@ -389,37 +381,21 @@ func TestOPMLService_ParseRealFeedlyExport(t *testing.T) {
 func TestOPMLService_RoundTrip(t *testing.T) {
 	service := NewOPMLService()
 
-	// Create test feeds
-	originalFeeds := []*models.Feed{
-		{
-			ID:        1,
-			Title:     "Test Feed 1",
-			URL:       "https://example1.com/feed.xml",
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
-		{
-			ID:        2,
-			Title:     "Test Feed 2",
-			URL:       "https://example2.com/feed.xml",
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
+	originalFeeds := []*models.UserFeed{
+		{Feed: models.Feed{ID: 1, Title: "Test Feed 1", URL: "https://example1.com/feed.xml", CreatedAt: time.Now(), UpdatedAt: time.Now()}},
+		{Feed: models.Feed{ID: 2, Title: "Test Feed 2", URL: "https://example2.com/feed.xml", CreatedAt: time.Now(), UpdatedAt: time.Now()}},
 	}
 
-	// Generate OPML
 	opmlData, err := service.GenerateOPML(originalFeeds, "testuser")
 	if err != nil {
 		t.Fatalf("GenerateOPML() error = %v", err)
 	}
 
-	// Parse OPML back
 	result, err := service.ParseOPML(opmlData)
 	if err != nil {
 		t.Fatalf("ParseOPML() error = %v", err)
 	}
 
-	// Verify round-trip
 	if result.Total != len(originalFeeds) {
 		t.Errorf("Round-trip: got %d feeds, want %d", result.Total, len(originalFeeds))
 	}

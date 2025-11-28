@@ -1,8 +1,8 @@
 <script>
-	import { createEventDispatcher } from 'svelte';
 	import { page } from '$app/stores';
-	import { feedsStore, uiStore } from '../stores.js';
+	import { createEventDispatcher } from 'svelte';
 	import { feeds as feedsApi } from '../api.js';
+	import { feedsStore, uiStore } from '../stores.js';
 
 	const dispatch = createEventDispatcher();
 
@@ -43,22 +43,26 @@
 	async function saveTitle(feed) {
 		if (editingFeedId !== feed.id) return;
 		
+		const originalTitle = feed.custom_title;
+		const newCustomTitle = editingTitle.trim() === '' || editingTitle.trim() === feed.title 
+			? null 
+			: editingTitle.trim();
+
+		// Optimistic update: Update store immediately
+		feedsStore.updateFeed(feed.id, { custom_title: newCustomTitle });
+
+		// Reset editing state immediately for better UX
+		editingFeedId = null;
+		editingTitle = '';
+
 		try {
-			// If title is empty or same as original, clear custom_title
-			const newCustomTitle = editingTitle.trim() === '' || editingTitle.trim() === feed.title 
-				? null 
-				: editingTitle.trim();
-			
 			await feedsApi.update(feed.id, { custom_title: newCustomTitle });
-			feedsStore.update(feeds => 
-				feeds.map(f => f.id === feed.id ? { ...f, custom_title: newCustomTitle } : f)
-			);
 		} catch (error) {
 			console.error('Failed to update feed title:', error);
 			uiStore.addToast('error', 'Failed to update feed title');
-		} finally {
-			editingFeedId = null;
-			editingTitle = '';
+			
+			// Rollback on error
+			feedsStore.updateFeed(feed.id, { custom_title: originalTitle });
 		}
 	}
 
@@ -104,42 +108,65 @@
 		{:else}
 			<div class="feed-list">
 				{#each $feedsStore as feed (feed.id)}
-					<a 
-						href="/feeds/{feed.id}" 
-						class="feed-item" 
-						class:active={currentFeedId === feed.id}
-						on:click={() => handleFeedClick(feed.id)}
-					>
-						<div class="feed-info">
-							{#if editingFeedId === feed.id}
-								<!-- svelte-ignore a11y-autofocus -->
-								<input
-									type="text"
-									class="edit-title-input"
-									bind:value={editingTitle}
-									on:blur={() => saveTitle(feed)}
-									on:keydown={(e) => handleKeydown(e, feed)}
-									on:click|stopPropagation
-									autofocus
-								/>
-							{:else}
-								<div class="feed-title">{getFeedTitle(feed)}</div>
-							{/if}
-							<div class="feed-description">{getFeedDescription(feed)}</div>
-						</div>
-
-						{#if editingFeedId !== feed.id}
-							<button 
-								class="edit-button"
-								on:click={(e) => startEditing(e, feed)}
-								title="Edit feed name"
+					<div class="feed-item-container">
+						{#if editingFeedId === feed.id}
+							<div class="feed-item editing">
+								<div class="feed-info">
+									<!-- svelte-ignore a11y-autofocus -->
+									<input
+										type="text"
+										class="edit-title-input"
+										bind:value={editingTitle}
+										on:keydown={(e) => handleKeydown(e, feed)}
+										autofocus
+									/>
+									<div class="feed-description">{getFeedDescription(feed)}</div>
+								</div>
+								<div class="edit-actions">
+									<button 
+										class="action-button save"
+										on:click|preventDefault|stopPropagation={() => saveTitle(feed)}
+										title="Save"
+									>
+										<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+										</svg>
+									</button>
+									<button 
+										class="action-button cancel"
+										on:click|preventDefault|stopPropagation={cancelEditing}
+										title="Cancel"
+									>
+										<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
+								</div>
+							</div>
+						{:else}
+							<a 
+								href="/feeds/{feed.id}" 
+								class="feed-item" 
+								class:active={currentFeedId === feed.id}
+								on:click={() => handleFeedClick(feed.id)}
 							>
-								<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-								</svg>
-							</button>
+								<div class="feed-info">
+									<div class="feed-title">{getFeedTitle(feed)}</div>
+									<div class="feed-description">{getFeedDescription(feed)}</div>
+								</div>
+
+								<button 
+									class="edit-button"
+									on:click|preventDefault|stopPropagation={(e) => startEditing(e, feed)}
+									title="Edit feed name"
+								>
+									<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+									</svg>
+								</button>
+							</a>
 						{/if}
-					</a>
+					</div>
 				{/each}
 			</div>
 		{/if}
@@ -267,7 +294,8 @@
 		padding: var(--space-2) 0;
 	}
 
-	.feed-item {
+	.feed-item,
+	.feed-item.editing {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -276,6 +304,9 @@
 		color: var(--text);
 		transition: background-color 0.2s ease;
 		position: relative;
+		width: 100%;
+		box-sizing: border-box;
+		min-height: 60px; /* Ensure consistent height */
 	}
 
 	.feed-item:hover {
@@ -287,6 +318,7 @@
 		border-right: 3px solid var(--primary);
 	}
 
+	/* Fix active state border */
 	.feed-item.active::before {
 		content: '';
 		position: absolute;
@@ -365,10 +397,46 @@
 		background: var(--bg);
 		color: var(--text);
 		outline: none;
+		box-sizing: border-box; /* Ensure padding doesn't affect width */
+		margin: 0; /* Reset margin */
+		line-height: 1.2; /* Match title line-height */
+		font-family: inherit;
 	}
 
 	.edit-title-input:focus {
 		box-shadow: 0 0 0 2px var(--primary-alpha);
+	}
+
+	.edit-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		margin-left: 8px;
+	}
+
+	.action-button {
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 4px;
+		border-radius: var(--radius-sm);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--text-muted);
+		transition: color 0.2s ease, background-color 0.2s ease;
+	}
+
+	.action-button:hover {
+		background: var(--bg-hover);
+	}
+
+	.action-button.save:hover {
+		color: var(--success, #22c55e);
+	}
+
+	.action-button.cancel:hover {
+		color: var(--error, #ef4444);
 	}
 
 	.sidebar-overlay {

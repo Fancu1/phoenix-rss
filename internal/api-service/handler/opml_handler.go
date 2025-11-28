@@ -12,25 +12,28 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
+	"github.com/Fancu1/phoenix-rss/internal/api-service/repository"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
 const (
-	maxOPMLFileSize = 10 << 20 // 10 MB max file size
+	maxOPMLFileSize = 10 << 20
 )
 
 type OPMLHandler struct {
-	feedService core.FeedServiceInterface
-	opmlService *core.OPMLService
-	cache       redis.Cmdable
+	feedService      core.FeedServiceInterface
+	subscriptionRepo *repository.SubscriptionRepository
+	opmlService      *core.OPMLService
+	cache            redis.Cmdable
 }
 
-func NewOPMLHandler(feedService core.FeedServiceInterface, cache redis.Cmdable) *OPMLHandler {
+func NewOPMLHandler(feedService core.FeedServiceInterface, subscriptionRepo *repository.SubscriptionRepository, cache redis.Cmdable) *OPMLHandler {
 	return &OPMLHandler{
-		feedService: feedService,
-		opmlService: core.NewOPMLService(),
-		cache:       cache,
+		feedService:      feedService,
+		subscriptionRepo: subscriptionRepo,
+		opmlService:      core.NewOPMLService(),
+		cache:            cache,
 	}
 }
 
@@ -40,21 +43,18 @@ func (h *OPMLHandler) ExportOPML(c *gin.Context) {
 
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
-		log.Error("user not authenticated in protected route")
 		c.Error(ierr.ErrUnauthorized)
 		return
 	}
 
-	log.Info("user requesting OPML export", "user_id", userID)
-
-	feeds, err := h.feedService.ListUserFeeds(ctx, userID)
+	feeds, err := h.subscriptionRepo.ListUserFeeds(ctx, userID)
 	if err != nil {
 		log.Error("failed to list user feeds for export", "user_id", userID, "error", err.Error())
-		c.Error(err)
+		c.Error(ierr.NewDatabaseError(err))
 		return
 	}
 
-	username := fmt.Sprintf("user_%d", userID) // TODO: get actual username
+	username := fmt.Sprintf("user_%d", userID)
 	opmlData, err := h.opmlService.GenerateOPML(feeds, username)
 	if err != nil {
 		log.Error("failed to generate OPML", "user_id", userID, "error", err.Error())
@@ -63,9 +63,6 @@ func (h *OPMLHandler) ExportOPML(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("phoenix-rss-subscriptions-%s.opml", time.Now().Format("2006-01-02"))
-
-	log.Info("successfully exported OPML", "user_id", userID, "feed_count", len(feeds))
-
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	c.Header("Content-Type", "application/xml")
 	c.Data(http.StatusOK, "application/xml", opmlData)
@@ -83,22 +80,17 @@ func (h *OPMLHandler) PreviewOPML(c *gin.Context) {
 
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
-		log.Error("user not authenticated in protected route")
 		c.Error(ierr.ErrUnauthorized)
 		return
 	}
 
-	log.Info("user requesting OPML import preview", "user_id", userID)
-
 	file, err := c.FormFile("file")
 	if err != nil {
-		log.Warn("no file provided for OPML import", "error", err.Error())
 		c.Error(ierr.NewValidationError("no file provided"))
 		return
 	}
 
 	if file.Size > maxOPMLFileSize {
-		log.Warn("OPML file too large", "size", file.Size)
 		c.Error(ierr.NewValidationError("file size exceeds maximum allowed (10MB)"))
 		return
 	}
@@ -120,25 +112,18 @@ func (h *OPMLHandler) PreviewOPML(c *gin.Context) {
 
 	parseResult, err := h.opmlService.ParseOPML(data)
 	if err != nil {
-		log.Warn("failed to parse OPML file", "error", err.Error())
 		c.Error(ierr.NewValidationError("invalid OPML file format"))
 		return
 	}
 
-	existingFeeds, err := h.feedService.ListUserFeeds(ctx, userID)
+	existingFeeds, err := h.subscriptionRepo.ListUserFeeds(ctx, userID)
 	if err != nil {
 		log.Error("failed to list existing feeds", "user_id", userID, "error", err.Error())
-		c.Error(err)
+		c.Error(ierr.NewDatabaseError(err))
 		return
 	}
 
 	toImport, duplicates := h.opmlService.FilterDuplicates(parseResult.Feeds, existingFeeds)
-
-	log.Info("OPML preview generated",
-		"user_id", userID,
-		"total_parsed", parseResult.Total,
-		"to_import", len(toImport),
-		"duplicates", len(duplicates))
 
 	c.JSON(http.StatusOK, PreviewImportRequest{
 		ToImport:   toImport,
@@ -157,25 +142,20 @@ func (h *OPMLHandler) ImportOPML(c *gin.Context) {
 
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
-		log.Error("user not authenticated in protected route")
 		c.Error(ierr.ErrUnauthorized)
 		return
 	}
 
 	var req ImportOPMLRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Warn("invalid import request", "error", err.Error())
 		c.Error(ierr.NewValidationError("invalid request body"))
 		return
 	}
 
 	if len(req.Feeds) == 0 {
-		log.Warn("no feeds to import")
 		c.Error(ierr.NewValidationError("no feeds to import"))
 		return
 	}
-
-	log.Info("user importing feeds from OPML", "user_id", userID, "feed_count", len(req.Feeds))
 
 	urls := make([]string, len(req.Feeds))
 	for i, feedItem := range req.Feeds {
@@ -210,12 +190,6 @@ func (h *OPMLHandler) ImportOPML(c *gin.Context) {
 	if imported > 0 {
 		h.invalidateUserFeedsCache(ctx, userID)
 	}
-
-	log.Info("OPML import completed",
-		"user_id", userID,
-		"imported", result.Imported,
-		"skipped", result.Skipped,
-		"failed", result.Failed)
 
 	c.JSON(http.StatusOK, result)
 }

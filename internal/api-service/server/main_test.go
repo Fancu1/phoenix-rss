@@ -108,7 +108,7 @@ func TestMain(m *testing.M) {
 	redisClient := redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"})
 	defer redisClient.Close()
 
-	s, err := New(cfg, logger.New(slog.LevelDebug), feedService, articleService, userService, redisClient, staticFS)
+	s, err := New(cfg, db, feedService, articleService, userService, redisClient, staticFS)
 	if err != nil {
 		log.Fatalf("Failed to create test server: %v", err)
 	}

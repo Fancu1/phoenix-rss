@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 
 	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/api-service/server"
@@ -63,7 +66,20 @@ func main() {
 	cancel()
 	defer redisClient.Close()
 
-	srv, err := server.New(cfg, appLogger, feedSvc, articleSvc, userSvc, redisClient, staticFiles)
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Database.Host, cfg.Database.Port, cfg.Database.User,
+		cfg.Database.Password, cfg.Database.DBName, cfg.Database.SSLMode)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		appLogger.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	sqlDB, _ := db.DB()
+	defer sqlDB.Close()
+
+	srv, err := server.New(cfg, db, feedSvc, articleSvc, userSvc, redisClient, staticFiles)
 	if err != nil {
 		appLogger.Error("failed to create server", "error", err)
 		os.Exit(1)

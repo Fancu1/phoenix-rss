@@ -1,120 +1,139 @@
 package handler
 
 import (
-	"log/slog"
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
+	"github.com/Fancu1/phoenix-rss/internal/api-service/repository"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
 
 type ArticleHandler struct {
-	logger  *slog.Logger
-	service core.ArticleServiceInterface
+	service          core.ArticleServiceInterface
+	subscriptionRepo *repository.SubscriptionRepository
+	articleRepo      *repository.ArticleRepository
 }
 
-func NewArticleHandler(logger *slog.Logger, articleService core.ArticleServiceInterface) *ArticleHandler {
+func NewArticleHandler(service core.ArticleServiceInterface, subscriptionRepo *repository.SubscriptionRepository, articleRepo *repository.ArticleRepository) *ArticleHandler {
 	return &ArticleHandler{
-		logger:  logger,
-		service: articleService,
+		service:          service,
+		subscriptionRepo: subscriptionRepo,
+		articleRepo:      articleRepo,
 	}
 }
 
 func (h *ArticleHandler) TriggerFetch(c *gin.Context) {
-	log := logger.FromContext(c.Request.Context())
+	ctx := c.Request.Context()
+	log := logger.FromContext(ctx)
 
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
-		log.Error("user not authenticated in protected route")
 		c.Error(ierr.ErrUnauthorized)
 		return
 	}
 
-	feedIDStr := c.Param("feed_id")
-	feedID, err := strconv.ParseUint(feedIDStr, 10, 32)
+	feedID, err := strconv.ParseUint(c.Param("feed_id"), 10, 32)
 	if err != nil {
-		log.Warn("invalid feed ID parameter", "feed_id_str", feedIDStr, "error", err.Error())
 		c.Error(ierr.ErrInvalidFeedID)
 		return
 	}
 
-	log.Info("user triggering feed fetch", "user_id", userID, "feed_id", feedID)
-
-	if err := h.service.TriggerFetch(c.Request.Context(), userID, uint(feedID)); err != nil {
+	if err := h.service.TriggerFetch(ctx, userID, uint(feedID)); err != nil {
 		log.Error("failed to trigger feed fetch", "user_id", userID, "feed_id", feedID, "error", err.Error())
 		c.Error(err)
 		return
 	}
 
-	log.Info("feed fetch triggered successfully", "feed_id", feedID, "user_id", userID)
-
 	c.JSON(http.StatusAccepted, gin.H{"message": "Feed fetch job accepted"})
 }
 
 func (h *ArticleHandler) ListArticles(c *gin.Context) {
-	// Get contextual logger for this request
-	log := logger.FromContext(c.Request.Context())
+	ctx := c.Request.Context()
+	log := logger.FromContext(ctx)
 
-	// Get user ID from context
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
-		log.Error("user not authenticated in protected route")
 		c.Error(ierr.ErrUnauthorized)
 		return
 	}
 
-	feedIDStr := c.Param("feed_id")
-	feedID, err := strconv.ParseUint(feedIDStr, 10, 32)
+	feedID, err := strconv.ParseUint(c.Param("feed_id"), 10, 32)
 	if err != nil {
-		log.Warn("invalid feed ID parameter", "feed_id_str", feedIDStr, "error", err.Error())
 		c.Error(ierr.ErrInvalidFeedID)
 		return
 	}
 
-	log.Info("user requesting articles", "user_id", userID, "feed_id", feedID)
-
-	articles, err := h.service.ListArticlesByFeedID(c.Request.Context(), userID, uint(feedID))
+	subscribed, err := h.subscriptionRepo.IsUserSubscribed(ctx, userID, uint(feedID))
 	if err != nil {
-		log.Error("failed to list articles", "user_id", userID, "feed_id", feedID, "error", err.Error())
-		c.Error(err)
+		log.Error("failed to check subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		c.Error(ierr.NewDatabaseError(err))
+		return
+	}
+	if !subscribed {
+		c.Error(ierr.ErrNotSubscribed)
 		return
 	}
 
-	log.Info("successfully retrieved articles", "user_id", userID, "feed_id", feedID, "article_count", len(articles))
+	articles, err := h.articleRepo.ListByFeedID(ctx, uint(feedID))
+	if err != nil {
+		log.Error("failed to list articles", "feed_id", feedID, "error", err.Error())
+		c.Error(ierr.NewDatabaseError(err))
+		return
+	}
+
 	c.JSON(http.StatusOK, articles)
 }
 
 func (h *ArticleHandler) GetArticle(c *gin.Context) {
-	log := logger.FromContext(c.Request.Context())
+	ctx := c.Request.Context()
+	log := logger.FromContext(ctx)
 
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
-		log.Error("user not authenticated in protected route")
 		c.Error(ierr.ErrUnauthorized)
 		return
 	}
 
-	articleIDStr := c.Param("article_id")
-	articleID, err := strconv.ParseUint(articleIDStr, 10, 32)
+	articleID, err := strconv.ParseUint(c.Param("article_id"), 10, 32)
 	if err != nil {
-		log.Warn("invalid article ID parameter", "article_id_str", articleIDStr, "error", err.Error())
-		c.Error(ierr.NewValidationError("Invalid article ID"))
+		c.Error(ierr.NewValidationError("invalid article ID"))
 		return
 	}
 
-	log.Info("user requesting article", "user_id", userID, "article_id", articleID)
-
-	article, err := h.service.GetArticleByID(c.Request.Context(), userID, uint(articleID))
+	feedID, err := h.articleRepo.GetFeedID(ctx, uint(articleID))
 	if err != nil {
-		log.Error("failed to get article", "user_id", userID, "article_id", articleID, "error", err.Error())
-		c.Error(err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.Error(ierr.ErrArticleNotFound)
+			return
+		}
+		log.Error("failed to get article feed_id", "article_id", articleID, "error", err.Error())
+		c.Error(ierr.NewDatabaseError(err))
 		return
 	}
 
-	log.Info("successfully retrieved article", "user_id", userID, "article_id", articleID)
+	subscribed, err := h.subscriptionRepo.IsUserSubscribed(ctx, userID, feedID)
+	if err != nil {
+		log.Error("failed to check subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
+		c.Error(ierr.NewDatabaseError(err))
+		return
+	}
+	if !subscribed {
+		c.Error(ierr.ErrNotSubscribed)
+		return
+	}
+
+	article, err := h.articleRepo.GetByID(ctx, uint(articleID))
+	if err != nil {
+		log.Error("failed to get article", "article_id", articleID, "error", err.Error())
+		c.Error(ierr.NewDatabaseError(err))
+		return
+	}
+
 	c.JSON(http.StatusOK, article)
 }
