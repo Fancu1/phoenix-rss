@@ -66,7 +66,7 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Failed to load config for testing: %v", err)
 	}
 
-	// Connect to the database started by db-setup.sh
+	// Connect to the database started by docker-compose
 	db := feedRepo.InitDB(&cfg.Database)
 
 	// Run database migrations (ensure tables exist)

@@ -78,31 +78,36 @@
 		</div>
 	</div>
 
-	{#if article.description}
-		<p class="article-description">
-			{truncateText(article.description)}
-		</p>
-	{/if}
-
 	{#if article.summary}
-		<div class="ai-summary">
-			<div class="ai-badge">
+		<!-- AI summary available: show it with a small badge -->
+		<div class="article-description-wrapper">
+			<span class="ai-indicator" title="AI Generated Summary">
 				<svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
 				</svg>
-				AI Summary
-			</div>
-			<p class="ai-content">
-				{truncateText(article.summary, 150)}
+			</span>
+			<p class="article-description ai-generated">
+				{truncateText(article.summary)}
 			</p>
 		</div>
 	{:else if article.processed_at === null}
+		<!-- AI processing in progress -->
+		{#if article.description}
+			<p class="article-description">
+				{truncateText(article.description)}
+			</p>
+		{/if}
 		<div class="ai-processing">
 			<div class="processing-badge">
 				<div class="processing-spinner"></div>
-				Processing...
+				AI Processing...
 			</div>
 		</div>
+	{:else if article.description}
+		<!-- No AI summary, show original description -->
+		<p class="article-description">
+			{truncateText(article.description)}
+		</p>
 	{/if}
 
 	<!-- Reading status indicators -->
@@ -185,6 +190,25 @@
 		color: var(--text-muted);
 	}
 
+	.article-description-wrapper {
+		display: flex;
+		gap: var(--space-2);
+		margin: 0 0 var(--space-3) 0;
+	}
+
+	.ai-indicator {
+		flex-shrink: 0;
+		width: 16px;
+		height: 16px;
+		color: var(--primary);
+		margin-top: 2px;
+	}
+
+	.ai-indicator svg {
+		width: 100%;
+		height: 100%;
+	}
+
 	.article-description {
 		margin: 0 0 var(--space-3) 0;
 		font-size: 0.875rem;
@@ -196,36 +220,9 @@
 		overflow: hidden;
 	}
 
-	.ai-summary {
-		background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 80%, var(--bg)) 100%);
-		border-radius: var(--radius-sm);
-		padding: var(--space-3);
-		margin-bottom: var(--space-2);
-	}
-
-	.ai-badge {
-		display: flex;
-		align-items: center;
-		gap: var(--space-1);
-		font-size: 0.625rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: var(--primary-contrast);
-		margin-bottom: var(--space-2);
-	}
-
-	.ai-badge svg {
-		width: 12px;
-		height: 12px;
-	}
-
-	.ai-content {
+	.article-description.ai-generated {
 		margin: 0;
-		font-size: 0.875rem;
-		line-height: 1.4;
-		color: var(--primary-contrast);
-		font-weight: 500;
+		color: var(--text);
 	}
 
 	.ai-processing {
