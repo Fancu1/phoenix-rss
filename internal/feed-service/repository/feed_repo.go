@@ -58,6 +58,24 @@ func (r *FeedRepository) ListByUserID(ctx context.Context, userID uint) ([]*mode
 	return feeds, result.Error
 }
 
+func (r *FeedRepository) UpdateStatus(ctx context.Context, feedID uint, status models.FeedStatus) error {
+	result := r.db.WithContext(ctx).Model(&models.Feed{}).
+		Where("id = ?", feedID).
+		Update("status", status)
+	return result.Error
+}
+
+func (r *FeedRepository) UpdateFeedMetadata(ctx context.Context, feedID uint, title, description string, status models.FeedStatus) error {
+	result := r.db.WithContext(ctx).Model(&models.Feed{}).
+		Where("id = ?", feedID).
+		Updates(map[string]interface{}{
+			"title":       title,
+			"description": description,
+			"status":      status,
+		})
+	return result.Error
+}
+
 func (r *FeedRepository) CreateSubscription(ctx context.Context, subscription *models.Subscription) error {
 	result := r.db.WithContext(ctx).Create(subscription)
 	return result.Error

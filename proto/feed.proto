@@ -12,6 +12,7 @@ message Feed {
   string description = 4;
   string created_at = 5;
   string updated_at = 6;
+  string status = 7;  // Feed sync status: "pending", "active", "error"
 }
 
 // Article message represents an individual article

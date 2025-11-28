@@ -39,6 +39,7 @@ func NewFeedServiceHandler(
 }
 
 // SubscribeToFeed create a subscription
+// Note: FeedService now handles publishing feed.fetch event internally
 func (h *FeedServiceHandler) SubscribeToFeed(ctx context.Context, req *feedpb.SubscribeToFeedRequest) (*feedpb.SubscribeToFeedResponse, error) {
 	log := logger.FromContext(ctx)
 	log.Info("gRPC: SubscribeToFeed", "user_id", req.UserId, "feed_url", req.FeedUrl)
@@ -56,15 +57,12 @@ func (h *FeedServiceHandler) SubscribeToFeed(ctx context.Context, req *feedpb.Su
 		return nil, h.mapErrorToGRPC(err)
 	}
 
-	if err := h.producer.PublishFeedFetch(ctx, feed.ID); err != nil {
-		log.Warn("failed to publish feed fetch event, but subscription created", "feed_id", feed.ID, "error", err.Error())
-	}
-
 	pbFeed := &feedpb.Feed{
 		Id:          uint64(feed.ID),
 		Title:       feed.Title,
 		Url:         feed.URL,
 		Description: feed.Description,
+		Status:      string(feed.Status),
 		CreatedAt:   feed.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   feed.UpdatedAt.Format(time.RFC3339),
 	}
@@ -73,7 +71,7 @@ func (h *FeedServiceHandler) SubscribeToFeed(ctx context.Context, req *feedpb.Su
 	return &feedpb.SubscribeToFeedResponse{Feed: pbFeed}, nil
 }
 
-// ListUserFeeds return all feeds subscribed by a specific user
+// ListUserFeeds return active feeds subscribed by a specific user (pending feeds are hidden)
 func (h *FeedServiceHandler) ListUserFeeds(ctx context.Context, req *feedpb.ListUserFeedsRequest) (*feedpb.ListUserFeedsResponse, error) {
 	log := logger.FromContext(ctx)
 	log.Info("gRPC: ListUserFeeds", "user_id", req.UserId)
@@ -82,6 +80,7 @@ func (h *FeedServiceHandler) ListUserFeeds(ctx context.Context, req *feedpb.List
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
+	// FeedService.ListUserFeeds now returns only active feeds
 	feeds, err := h.feedService.ListUserFeeds(ctx, uint(req.UserId))
 	if err != nil {
 		log.Error("failed to list user feeds", "user_id", req.UserId, "error", err.Error())
@@ -96,6 +95,7 @@ func (h *FeedServiceHandler) ListUserFeeds(ctx context.Context, req *feedpb.List
 			Title:       feed.Title,
 			Url:         feed.URL,
 			Description: feed.Description,
+			Status:      string(feed.Status),
 			CreatedAt:   feed.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:   feed.UpdatedAt.Format(time.RFC3339),
 		}
@@ -232,6 +232,7 @@ func (h *FeedServiceHandler) ListAllFeeds(ctx context.Context, req *feedpb.ListA
 			Title:       feed.Title,
 			Url:         feed.URL,
 			Description: feed.Description,
+			Status:      string(feed.Status),
 			CreatedAt:   feed.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:   feed.UpdatedAt.Format(time.RFC3339),
 		}

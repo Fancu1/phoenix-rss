@@ -150,6 +150,7 @@ func (c *FeedServiceClient) convertPbToFeed(pbFeed *feedpb.Feed) (*models.Feed, 
 		Title:       pbFeed.Title,
 		URL:         pbFeed.Url,
 		Description: pbFeed.Description,
+		Status:      models.FeedStatus(pbFeed.Status),
 		CreatedAt:   createdAt,
 		UpdatedAt:   updatedAt,
 	}, nil

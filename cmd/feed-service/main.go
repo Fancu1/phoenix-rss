@@ -56,7 +56,16 @@ func main() {
 		cfg.Kafka.AIProcessing.ArticlesProcessedTopic,
 	)
 
-	feedService := core.NewFeedService(feedRepo, log)
+	// Initialize Kafka producer for feed.fetch events (needed by FeedService for async subscription)
+	feedFetchProducer := events.NewKafkaProducer(log, events.KafkaConfig{
+		Brokers: cfg.Kafka.Brokers,
+		Topic:   cfg.Kafka.FeedFetch.Topic,
+		GroupID: cfg.Kafka.FeedFetch.FeedServiceGroupID,
+	})
+	defer feedFetchProducer.Close()
+
+	// FeedService now supports async subscription via Kafka producer
+	feedService := core.NewFeedService(feedRepo, log, feedFetchProducer)
 	articleService := core.NewArticleService(feedRepo, articleRepo, aiEventProducer, log)
 
 	updateTimeout, err := time.ParseDuration(cfg.FeedService.ArticleUpdate.HTTPTimeout)
@@ -100,14 +109,8 @@ func main() {
 	}, articleUpdateWorker.HandleArticleCheck)
 	defer articleCheckConsumer.Stop(context.Background())
 
-	feedFetchProducer := events.NewKafkaProducer(log, events.KafkaConfig{
-		Brokers: cfg.Kafka.Brokers,
-		Topic:   cfg.Kafka.FeedFetch.Topic,
-		GroupID: cfg.Kafka.FeedFetch.FeedServiceGroupID,
-	})
-	defer feedFetchProducer.Close()
-
-	feedFetcher := worker.NewFeedFetcher(log, articleService)
+	// FeedFetcher now handles metadata updates for pending feeds
+	feedFetcher := worker.NewFeedFetcher(log, articleService, feedRepo)
 
 	feedFetchConsumer := events.NewKafkaConsumer(log, events.KafkaConfig{
 		Brokers: cfg.Kafka.Brokers,

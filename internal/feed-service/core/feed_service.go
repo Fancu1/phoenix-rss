@@ -8,6 +8,7 @@ import (
 
 	"github.com/mmcdole/gofeed"
 
+	"github.com/Fancu1/phoenix-rss/internal/events"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/models"
 	"github.com/Fancu1/phoenix-rss/internal/feed-service/repository"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
@@ -24,16 +25,19 @@ type FeedServiceInterface interface {
 }
 
 type FeedService struct {
-	parser *gofeed.Parser
-	repo   *repository.FeedRepository
-	logger *slog.Logger
+	parser   *gofeed.Parser
+	repo     *repository.FeedRepository
+	producer events.Producer
+	logger   *slog.Logger
 }
 
-func NewFeedService(repo *repository.FeedRepository, logger *slog.Logger) *FeedService {
+// NewFeedService creates a FeedService. Producer can be nil (sync mode).
+func NewFeedService(repo *repository.FeedRepository, logger *slog.Logger, producer events.Producer) *FeedService {
 	return &FeedService{
-		parser: gofeed.NewParser(),
-		repo:   repo,
-		logger: logger,
+		parser:   gofeed.NewParser(),
+		repo:     repo,
+		producer: producer,
+		logger:   logger,
 	}
 }
 
@@ -95,16 +99,19 @@ func (s *FeedService) SubscribeToFeed(ctx context.Context, userID uint, url stri
 	}
 
 	var feed *models.Feed
+	var needFetch bool
+
 	if existingFeed != nil {
 		log.Info("found existing feed", "feed_id", existingFeed.ID, "url", url)
 		feed = existingFeed
 	} else {
-		log.Info("feed does not exist, creating new feed", "url", url)
-		feed, err = s.AddFeedByURL(ctx, url)
+		log.Info("feed does not exist, creating new feed record", "url", url)
+		feed, err = s.createFeed(ctx, url)
 		if err != nil {
-			log.Error("failed to create new feed for subscription", "url", url, "error", err.Error())
+			log.Error("failed to create feed", "url", url, "error", err.Error())
 			return nil, err
 		}
+		needFetch = true
 	}
 
 	isSubscribed, err := s.repo.IsUserSubscribed(ctx, userID, feed.ID)
@@ -131,8 +138,39 @@ func (s *FeedService) SubscribeToFeed(ctx context.Context, userID uint, url stri
 		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to create subscription for user %d to feed %d (%s): %w", userID, feed.ID, feed.Title, err))
 	}
 
-	log.Info("successfully created subscription", "user_id", userID, "feed_id", feed.ID)
+	if needFetch && s.producer != nil {
+		if err := s.producer.PublishFeedFetch(ctx, feed.ID); err != nil {
+			log.Warn("failed to publish feed fetch event, scheduler will retry", "feed_id", feed.ID, "error", err.Error())
+		} else {
+			log.Info("published feed fetch event", "feed_id", feed.ID)
+		}
+	}
+
+	log.Info("successfully created subscription", "user_id", userID, "feed_id", feed.ID, "async", needFetch)
 	return feed, nil
+}
+
+func (s *FeedService) createFeed(ctx context.Context, url string) (*models.Feed, error) {
+	log := logger.FromContext(ctx)
+
+	newFeed := &models.Feed{
+		Title:     url, // temporary title until first fetch
+		URL:       url,
+		Status:    models.FeedStatusActive,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	log.Info("creating feed record", "url", url)
+
+	createdFeed, err := s.repo.Create(ctx, newFeed)
+	if err != nil {
+		log.Error("failed to create feed in database", "url", url, "error", err.Error())
+		return nil, ierr.NewDatabaseError(fmt.Errorf("failed to create feed for URL '%s': %w", url, err))
+	}
+
+	log.Info("successfully created feed", "feed_id", createdFeed.ID, "url", url)
+	return createdFeed, nil
 }
 
 func (s *FeedService) ListUserFeeds(ctx context.Context, userID uint) ([]*models.Feed, error) {

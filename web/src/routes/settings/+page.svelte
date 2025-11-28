@@ -1,11 +1,15 @@
 <script>
 	import { goto } from '$app/navigation';
-	import { authStore, uiStore } from '$lib/stores.js';
+	import { authStore, uiStore, toast } from '$lib/stores.js';
+	import { feeds } from '$lib/api.js';
 	import NavBar from '$lib/components/NavBar.svelte';
 	import SideBar from '$lib/components/SideBar.svelte';
 	import AddSubscriptionModal from '$lib/components/AddSubscriptionModal.svelte';
+	import ImportModal from '$lib/components/ImportModal.svelte';
 
 	let showAddModal = false;
+	let showImportModal = false;
+	let isExporting = false;
 
 	// Redirect to login if not authenticated
 	$: if ($authStore.status === 'anonymous') {
@@ -20,8 +24,30 @@
 		showAddModal = false;
 	}
 
+	function handleImportModalClose() {
+		showImportModal = false;
+	}
+
 	function handleThemeChange() {
 		uiStore.toggleTheme();
+	}
+
+	async function handleExport() {
+		if (isExporting) return;
+		
+		isExporting = true;
+		try {
+			await feeds.exportOPML();
+			toast.success('Subscriptions exported successfully');
+		} catch (err) {
+			toast.error(err.message || 'Failed to export subscriptions');
+		} finally {
+			isExporting = false;
+		}
+	}
+
+	function handleImport() {
+		showImportModal = true;
 	}
 </script>
 
@@ -118,6 +144,56 @@
 							</div>
 						</section>
 
+						<!-- Data Management Section -->
+						<section class="settings-section">
+							<div class="section-header">
+								<h2>Data Management</h2>
+								<p class="text-muted">Import or export your RSS subscriptions</p>
+							</div>
+							
+							<div class="setting-item">
+								<div class="setting-info">
+									<span class="setting-label">Import Subscriptions</span>
+									<p class="setting-description">Import feeds from an OPML file exported from another RSS reader</p>
+								</div>
+								<div class="setting-control">
+									<button 
+										class="button secondary"
+										on:click={handleImport}
+									>
+										<svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+										</svg>
+										Import OPML
+									</button>
+								</div>
+							</div>
+
+							<div class="setting-item">
+								<div class="setting-info">
+									<span class="setting-label">Export Subscriptions</span>
+									<p class="setting-description">Download all your subscriptions as an OPML file</p>
+								</div>
+								<div class="setting-control">
+									<button 
+										class="button secondary"
+										class:loading={isExporting}
+										on:click={handleExport}
+										disabled={isExporting}
+									>
+										{#if isExporting}
+											<span class="spinner"></span>
+										{:else}
+											<svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+											</svg>
+										{/if}
+										Export OPML
+									</button>
+								</div>
+							</div>
+						</section>
+
 						<!-- About Section -->
 						<section class="settings-section">
 							<div class="section-header">
@@ -160,6 +236,12 @@
 	<AddSubscriptionModal 
 		open={showAddModal} 
 		on:close={handleModalClose}
+	/>
+
+	<!-- Import Modal -->
+	<ImportModal 
+		open={showImportModal} 
+		on:close={handleImportModalClose}
 	/>
 {/if}
 
@@ -364,6 +446,26 @@
 	.button svg {
 		width: 16px;
 		height: 16px;
+	}
+
+	.button.loading {
+		opacity: 0.7;
+		cursor: not-allowed;
+	}
+
+	.spinner {
+		width: 16px;
+		height: 16px;
+		border: 2px solid var(--border);
+		border-top-color: var(--primary);
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	@media (max-width: 768px) {

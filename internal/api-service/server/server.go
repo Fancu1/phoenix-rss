@@ -20,6 +20,7 @@ type Server struct {
 	feedHandler     *handler.FeedHandler
 	articleHandler  *handler.ArticleHandler
 	userHandler     *handler.UserHandler
+	opmlHandler     *handler.OPMLHandler
 	authMiddleware  *handler.AuthMiddleware
 	frontendHandler *handler.StaticFrontendHandler
 }
@@ -28,6 +29,7 @@ func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceIn
 	feedHandler := handler.NewFeedHandler(feedService, redisClient)
 	articleHandler := handler.NewArticleHandler(logger, articleService)
 	userHandler := handler.NewUserHandler(userService)
+	opmlHandler := handler.NewOPMLHandler(feedService, redisClient)
 	authMiddleware := handler.NewAuthMiddleware(cfg.Auth.JWTSecret)
 	frontendHandler, err := handler.NewStaticFrontendHandler(staticFS)
 	if err != nil {
@@ -40,6 +42,7 @@ func New(cfg *config.Config, logger *slog.Logger, feedService core.FeedServiceIn
 		feedHandler:     feedHandler,
 		articleHandler:  articleHandler,
 		userHandler:     userHandler,
+		opmlHandler:     opmlHandler,
 		authMiddleware:  authMiddleware,
 		frontendHandler: frontendHandler,
 	}

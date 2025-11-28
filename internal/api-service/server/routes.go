@@ -35,11 +35,18 @@ func (s *Server) setupRoutes() {
 			// Feed management (user-specific)
 			protected.GET("/feeds", s.feedHandler.ListFeeds)
 			protected.POST("/feeds", s.feedHandler.AddFeed)
+
+			// OPML import/export (must be before :feed_id routes)
+			protected.GET("/feeds/export", s.opmlHandler.ExportOPML)
+			protected.POST("/feeds/import/preview", s.opmlHandler.PreviewOPML)
+			protected.POST("/feeds/import", s.opmlHandler.ImportOPML)
+
+			// Feed-specific routes (with :feed_id parameter)
 			protected.DELETE("/feeds/:feed_id", s.feedHandler.UnsubscribeFeed)
 			protected.POST("/feeds/:feed_id/fetch", s.articleHandler.TriggerFetch)
+			protected.GET("/feeds/:feed_id/articles", s.articleHandler.ListArticles)
 
 			// Article access (user-specific)
-			protected.GET("/feeds/:feed_id/articles", s.articleHandler.ListArticles)
 			protected.GET("/articles/:article_id", s.articleHandler.GetArticle)
 		}
 	}

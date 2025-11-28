@@ -176,12 +176,12 @@ func startTestFeedService(db *gorm.DB, address string) func() {
 	// Create a mock article event producer for testing
 	mockEventProducer := &MockArticleEventProducer{}
 
-	// Initialize services
-	feedService := feedCore.NewFeedService(feedRepository, logger.New(slog.LevelDebug))
+	// Initialize services (pass nil for producer in tests - will use memBus later)
+	feedService := feedCore.NewFeedService(feedRepository, logger.New(slog.LevelDebug), nil)
 	articleService := feedCore.NewArticleService(feedRepository, articleRepository, mockEventProducer, logger.New(slog.LevelDebug))
 
 	// Create event handler for processing
-	feedFetcher := feedWorker.NewFeedFetcher(logger.New(slog.LevelDebug), articleService)
+	feedFetcher := feedWorker.NewFeedFetcher(logger.New(slog.LevelDebug), articleService, feedRepository)
 
 	// In tests, use in-memory bus to avoid Kafka dependency
 	memBus := events.NewMemoryBus(logger.New(slog.LevelDebug), feedFetcher.HandleFeedFetch)

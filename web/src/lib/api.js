@@ -138,6 +138,75 @@ export const feeds = {
 	fetch: (feedId) => 
 		apiFetch(`/feeds/${feedId}/fetch`, {
 			method: 'POST'
+		}),
+	
+	// Export subscriptions as OPML file
+	exportOPML: async () => {
+		const auth = get(authStore);
+		const response = await fetch(`${API_BASE}/feeds/export`, {
+			headers: {
+				Authorization: `Bearer ${auth.token}`
+			}
+		});
+		
+		if (!response.ok) {
+			throw new APIError('Failed to export subscriptions', response.status, response.status);
+		}
+		
+		// Get filename from Content-Disposition header or use default
+		const contentDisposition = response.headers.get('Content-Disposition');
+		let filename = 'phoenix-rss-subscriptions.opml';
+		if (contentDisposition) {
+			const match = contentDisposition.match(/filename=(.+)/);
+			if (match) {
+				filename = match[1];
+			}
+		}
+		
+		// Create blob and trigger download
+		const blob = await response.blob();
+		const url = window.URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		document.body.appendChild(a);
+		a.click();
+		window.URL.revokeObjectURL(url);
+		document.body.removeChild(a);
+	},
+	
+	// Preview OPML import (parse file and check for duplicates)
+	previewImport: async (file) => {
+		const auth = get(authStore);
+		const formData = new FormData();
+		formData.append('file', file);
+		
+		const response = await fetch(`${API_BASE}/feeds/import/preview`, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${auth.token}`
+			},
+			body: formData
+		});
+		
+		if (!response.ok) {
+			let errorData;
+			try {
+				errorData = await response.json();
+			} catch {
+				errorData = { message: 'Failed to preview import' };
+			}
+			throw new APIError(errorData.message, response.status, response.status);
+		}
+		
+		return await response.json();
+	},
+	
+	// Import feeds from OPML preview
+	importFeeds: (feeds) => 
+		apiFetch('/feeds/import', {
+			method: 'POST',
+			body: JSON.stringify({ feeds })
 		})
 };
 
