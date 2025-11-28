@@ -161,7 +161,7 @@ func (c *LLMClient) ProcessArticle(ctx context.Context, title, content string) (
 
 // createArticleProcessingPrompt create a prompt for article processing
 func (c *LLMClient) createArticleProcessingPrompt(title, content string) string {
-	prompt := fmt.Sprintf(`Please provide a concise summary of the following article in 2-3 sentences. Focus on the main topics, key insights, and most important information.
+	prompt := fmt.Sprintf(`Please provide a concise summary of the following article in 2-3 sentences. Focus on the main topics, key insights, and most important information. Use simple chinese to respond.
 
 Article Title: %s
 

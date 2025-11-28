@@ -14,8 +14,9 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the binary
+# Build the binaries
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /bin/feed-service ./cmd/feed-service
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /bin/phoenix-admin ./cmd/phoenix-admin
 
 # Download grpc-health-probe for health checking (with retries)
 RUN GRPC_HEALTH_PROBE_VERSION=v0.4.28 && \
@@ -39,8 +40,9 @@ RUN addgroup -g 1001 -S appgroup && \
 
 WORKDIR /app
 
-# Copy binary and health probe from builder stage
+# Copy binaries and health probe from builder stage
 COPY --from=builder /bin/feed-service /app/feed-service
+COPY --from=builder /bin/phoenix-admin /app/phoenix-admin
 COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
 
 # Change ownership to appuser
