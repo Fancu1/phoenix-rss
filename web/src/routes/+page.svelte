@@ -1,6 +1,5 @@
 <script>
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import { authStore, feedsStore, uiStore } from '$lib/stores.js';
 	import { feeds } from '$lib/api.js';
 	import NavBar from '$lib/components/NavBar.svelte';
@@ -9,11 +8,6 @@
 
 	let showAddModal = false;
 	let loading = true;
-
-	// Redirect to login if not authenticated
-	$: if ($authStore.status === 'anonymous') {
-		goto('/login');
-	}
 
 	onMount(async () => {
 		// Auth state is now initialized synchronously from localStorage at module load
@@ -24,9 +18,9 @@
 				authStore.setStatus('authenticated');
 			} catch (error) {
 				// Only logout if it's an auth error (401)
+				// Global auth guard in +layout.svelte will handle the redirect
 				if (error.status === 401) {
 					authStore.logout();
-					goto('/login');
 					return;
 				}
 				// For other errors, still mark as authenticated (token might be valid)

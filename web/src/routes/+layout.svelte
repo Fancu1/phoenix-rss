@@ -1,5 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { authStore, uiStore } from '$lib/stores.js';
 	import Toast from '$lib/components/Toast.svelte';
@@ -12,8 +13,13 @@
 	});
 
 	// Check if current route is public (doesn't require auth)
-	$: isPublicRoute = ['/login', '/register', '/about'].includes($page.route.id);
-	$: isAuthRoute = ['/login', '/register'].includes($page.route.id);
+	$: isPublicRoute = ['/login', '/register', '/about'].includes($page.route?.id);
+	$: isAuthRoute = ['/login', '/register'].includes($page.route?.id);
+
+	// Global auth guard: redirect to login when auth status becomes anonymous on protected routes
+	$: if ($authStore.status === 'anonymous' && !isPublicRoute) {
+		goto('/login');
+	}
 </script>
 
 <!-- Show auth layout for login/register -->

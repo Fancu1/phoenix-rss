@@ -25,11 +25,6 @@
 
 	$: feedId = parseInt($page.params.feed_id);
 
-	// Redirect to login if not authenticated
-	$: if ($authStore.status === 'anonymous') {
-		goto('/login');
-	}
-
 	// Find current feed from the store
 	$: currentFeed = $feedsStore.find(feed => feed.id === feedId);
 
@@ -42,9 +37,9 @@
 				authStore.setStatus('authenticated');
 			} catch (error) {
 				// Only logout if it's an auth error (401)
+				// Global auth guard in +layout.svelte will handle the redirect
 				if (error.status === 401) {
 					authStore.logout();
-					goto('/login');
 					return;
 				}
 				// For other errors, still mark as authenticated
