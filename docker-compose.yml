@@ -228,6 +228,7 @@ services:
 
 volumes:
   postgresql_data:
+    name: phoenix-rss_postgresql_data
 
 networks:
   phoenix:

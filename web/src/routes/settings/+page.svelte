@@ -1,20 +1,43 @@
 <script>
 	import { goto } from '$app/navigation';
-	import { authStore, uiStore, toast } from '$lib/stores.js';
 	import { feeds } from '$lib/api.js';
-	import NavBar from '$lib/components/NavBar.svelte';
-	import SideBar from '$lib/components/SideBar.svelte';
 	import AddSubscriptionModal from '$lib/components/AddSubscriptionModal.svelte';
 	import ImportModal from '$lib/components/ImportModal.svelte';
+	import NavBar from '$lib/components/NavBar.svelte';
+	import SideBar from '$lib/components/SideBar.svelte';
+	import { authStore, toast, uiStore } from '$lib/stores.js';
+	import { onMount } from 'svelte';
 
 	let showAddModal = false;
 	let showImportModal = false;
 	let isExporting = false;
+	let loading = true;
 
 	// Redirect to login if not authenticated
 	$: if ($authStore.status === 'anonymous') {
 		goto('/login');
 	}
+
+	onMount(async () => {
+		// If we have a token (status === 'unknown'), validate it with an API call
+		if ($authStore.status === 'unknown' && $authStore.token) {
+			try {
+				// Make a simple API call to validate the token
+				await feeds.list();
+				authStore.setStatus('authenticated');
+			} catch (error) {
+				// Only logout if it's an auth error (401)
+				if (error.status === 401) {
+					authStore.logout();
+					goto('/login');
+					return;
+				}
+				// For other errors, still mark as authenticated (token might be valid)
+				authStore.setStatus('authenticated');
+			}
+		}
+		loading = false;
+	});
 
 	function handleAddSubscription() {
 		showAddModal = true;
@@ -243,9 +266,38 @@
 		open={showImportModal} 
 		on:close={handleImportModalClose}
 	/>
+{:else if loading}
+	<div class="loading-screen">
+		<div class="loading-spinner"></div>
+		<p>Loading...</p>
+	</div>
 {/if}
 
 <style>
+	.loading-screen {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		min-height: 100vh;
+		gap: var(--space-4);
+		color: var(--text-muted);
+	}
+
+	.loading-spinner {
+		width: 32px;
+		height: 32px;
+		border: 3px solid var(--border);
+		border-top: 3px solid var(--primary);
+		border-radius: 50%;
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
 	.main-layout {
 		min-height: 100vh;
 		display: flex;

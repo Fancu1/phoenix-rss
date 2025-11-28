@@ -34,7 +34,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /bin/api-service 
 # ============================================================================
 # Stage 3: Final Image
 # ============================================================================
-FROM alpine:3.20
+FROM golang:1.23-alpine
 
 # Install ca-certificates for HTTPS and wget for health checks
 RUN apk --no-cache add ca-certificates tzdata wget
