@@ -1,8 +1,5 @@
 <script>
-	import { createEventDispatcher } from 'svelte';
 	import { authStore, uiStore } from '../stores.js';
-
-	const dispatch = createEventDispatcher();
 
 	let showUserMenu = false;
 
@@ -45,23 +42,9 @@
 			</svg>
 		</button>
 
-		<div class="navbar-brand">
+		<a href="/" class="navbar-brand">
 			<h2>Phoenix RSS</h2>
-		</div>
-	</div>
-
-	<div class="navbar-center">
-		<div class="search-container">
-			<svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-			</svg>
-			<input 
-				type="text" 
-				class="search-input" 
-				placeholder="Search articles..."
-				disabled
-			/>
-		</div>
+		</a>
 	</div>
 
 	<div class="navbar-right">
@@ -145,12 +128,6 @@
 		gap: var(--space-3);
 	}
 
-	.navbar-center {
-		flex: 1;
-		max-width: 360px;
-		margin: 0 var(--space-4);
-	}
-
 	.navbar-right {
 		display: flex;
 		align-items: center;
@@ -184,48 +161,20 @@
 		display: none;
 	}
 
+	.navbar-brand {
+		text-decoration: none;
+	}
+
 	.navbar-brand h2 {
 		margin: 0;
 		font-size: 1.25rem;
 		font-weight: 600;
 		color: var(--text);
+		transition: opacity 0.2s ease;
 	}
 
-	.search-container {
-		position: relative;
-		width: 100%;
-	}
-
-	.search-icon {
-		position: absolute;
-		left: var(--space-3);
-		top: 50%;
-		transform: translateY(-50%);
-		width: 16px;
-		height: 16px;
-		color: var(--text-muted);
-		pointer-events: none;
-	}
-
-	.search-input {
-		width: 100%;
-		padding: var(--space-2) var(--space-3) var(--space-2) 36px;
-		background: var(--bg);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		color: var(--text);
-		font-size: 0.875rem;
-		transition: border-color 0.2s ease;
-	}
-
-	.search-input:focus {
-		outline: none;
-		border-color: var(--primary);
-	}
-
-	.search-input:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
+	.navbar-brand:hover h2 {
+		opacity: 0.8;
 	}
 
 	.user-menu-container {
@@ -312,14 +261,6 @@
 	@media (max-width: 768px) {
 		.sidebar-toggle {
 			display: flex;
-		}
-
-		.navbar-center {
-			display: none;
-		}
-
-		.button-text {
-			display: none;
 		}
 
 		.navbar {
