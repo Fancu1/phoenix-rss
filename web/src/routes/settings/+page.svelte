@@ -299,26 +299,28 @@
 		}
 	}
 	.main-layout {
-		min-height: 100vh;
+		height: 100vh;
 		display: flex;
 		flex-direction: column;
+		overflow: hidden;
 	}
 
 	.content-layout {
 		flex: 1;
 		display: flex;
+		height: calc(100vh - 56px);
 		overflow: hidden;
+		position: relative;
 	}
 
 	.main-content {
 		flex: 1;
+		height: 100%;
 		overflow-y: auto;
-		margin-left: 0;
-		transition: margin-left 0.3s ease;
 	}
 
 	.main-content.sidebar-open {
-		margin-left: 280px;
+		/* No margin needed, sidebar is in flexbox flow */
 	}
 
 	.settings-page {
@@ -521,14 +523,6 @@
 	}
 
 	@media (max-width: 768px) {
-		.main-content {
-			margin-left: 0;
-		}
-
-		.main-content.sidebar-open {
-			margin-left: 0;
-		}
-
 		.settings-page {
 			padding: var(--space-4) var(--space-3);
 		}

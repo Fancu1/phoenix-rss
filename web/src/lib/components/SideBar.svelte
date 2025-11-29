@@ -462,13 +462,17 @@
 
 	@media (min-width: 769px) {
 		.sidebar {
-			position: relative;
+			position: absolute;
 			top: 0;
-			transform: none;
+			left: 0;
+			height: 100%;
+			flex-shrink: 0;
+			transform: translateX(-100%);
 		}
 
 		.sidebar.open {
-			transform: none;
+			position: relative;
+			transform: translateX(0);
 		}
 	}
 </style>
