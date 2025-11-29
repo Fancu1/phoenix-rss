@@ -10,9 +10,24 @@ import (
 
 	"github.com/Fancu1/phoenix-rss/internal/api-service/core"
 	"github.com/Fancu1/phoenix-rss/internal/api-service/repository"
+	"github.com/Fancu1/phoenix-rss/internal/feed-service/models"
 	"github.com/Fancu1/phoenix-rss/pkg/ierr"
 	"github.com/Fancu1/phoenix-rss/pkg/logger"
 )
+
+// PaginationMeta contains pagination metadata for list responses
+type PaginationMeta struct {
+	Page       int   `json:"page"`
+	PageSize   int   `json:"page_size"`
+	Total      int64 `json:"total"`
+	TotalPages int   `json:"total_pages"`
+}
+
+// ArticleListResponse is the paginated response for article listings
+type ArticleListResponse struct {
+	Items      []*models.Article `json:"items"`
+	Pagination PaginationMeta    `json:"pagination"`
+}
 
 type ArticleHandler struct {
 	service          core.ArticleServiceInterface
@@ -69,6 +84,10 @@ func (h *ArticleHandler) ListArticles(c *gin.Context) {
 		return
 	}
 
+	// Parse pagination parameters from query string
+	page := parseIntQueryParam(c, "page", 1)
+	pageSize := parseIntQueryParam(c, "page_size", repository.DefaultPageSize)
+
 	subscribed, err := h.subscriptionRepo.IsUserSubscribed(ctx, userID, uint(feedID))
 	if err != nil {
 		log.Error("failed to check subscription", "user_id", userID, "feed_id", feedID, "error", err.Error())
@@ -80,14 +99,55 @@ func (h *ArticleHandler) ListArticles(c *gin.Context) {
 		return
 	}
 
-	articles, err := h.articleRepo.ListByFeedID(ctx, uint(feedID))
+	articles, total, err := h.articleRepo.ListByFeedIDPaginated(ctx, uint(feedID), page, pageSize)
 	if err != nil {
-		log.Error("failed to list articles", "feed_id", feedID, "error", err.Error())
+		log.Error("failed to list articles", "feed_id", feedID, "page", page, "error", err.Error())
 		c.Error(ierr.NewDatabaseError(err))
 		return
 	}
 
-	c.JSON(http.StatusOK, articles)
+	// Normalize page/pageSize in response (repo may have adjusted invalid values)
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > repository.MaxPageSize {
+		pageSize = repository.DefaultPageSize
+	}
+
+	c.JSON(http.StatusOK, ArticleListResponse{
+		Items: articles,
+		Pagination: PaginationMeta{
+			Page:       page,
+			PageSize:   pageSize,
+			Total:      total,
+			TotalPages: calculateTotalPages(total, pageSize),
+		},
+	})
+}
+
+// parseIntQueryParam extracts an integer query parameter with a fallback default
+func parseIntQueryParam(c *gin.Context, key string, defaultVal int) int {
+	valStr := c.Query(key)
+	if valStr == "" {
+		return defaultVal
+	}
+	val, err := strconv.Atoi(valStr)
+	if err != nil {
+		return defaultVal
+	}
+	return val
+}
+
+// calculateTotalPages computes the number of pages needed for a given total and page size
+func calculateTotalPages(total int64, pageSize int) int {
+	if pageSize <= 0 {
+		return 0
+	}
+	pages := int(total) / pageSize
+	if int(total)%pageSize > 0 {
+		pages++
+	}
+	return pages
 }
 
 func (h *ArticleHandler) GetArticle(c *gin.Context) {

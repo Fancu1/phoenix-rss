@@ -137,9 +137,15 @@ export const feeds = {
 			body: JSON.stringify(data)
 		}),
 	
-	// Get articles for a specific feed
-	getArticles: (feedId) => 
-		apiFetch(`/feeds/${feedId}/articles`),
+	// Get articles for a specific feed with pagination
+	// Options: { page: number, pageSize: number }
+	getArticles: (feedId, options = {}) => {
+		const params = new URLSearchParams();
+		if (options.page) params.set('page', options.page.toString());
+		if (options.pageSize) params.set('page_size', options.pageSize.toString());
+		const query = params.toString();
+		return apiFetch(`/feeds/${feedId}/articles${query ? `?${query}` : ''}`);
+	},
 	
 	// Trigger feed fetch
 	fetch: (feedId) => 

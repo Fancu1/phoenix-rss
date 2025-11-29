@@ -61,6 +61,10 @@ func (c *UserServiceClient) Register(username, password string) (*models.User, e
 		return nil, MapGRPCError(err)
 	}
 
+	if resp.User == nil {
+		return nil, fmt.Errorf("user service returned nil user")
+	}
+
 	return &models.User{
 		ID:       uint(resp.User.Id),
 		Username: resp.User.Username,
@@ -101,6 +105,10 @@ func (c *UserServiceClient) ValidateToken(tokenString string) (*jwt.Token, error
 		return nil, fmt.Errorf("token validation failed: %s", resp.Error)
 	}
 
+	if resp.User == nil {
+		return nil, fmt.Errorf("user service returned nil user for valid token")
+	}
+
 	// create a mock JWT token since we only need the validation result
 	// the actual token parsing and validation is done by the user service
 	token := &jwt.Token{
@@ -125,6 +133,10 @@ func (c *UserServiceClient) GetUserFromToken(tokenString string) (*models.User, 
 	resp, err := c.client.GetUserFromToken(ctx, req)
 	if err != nil {
 		return nil, MapGRPCError(err)
+	}
+
+	if resp.User == nil {
+		return nil, fmt.Errorf("user service returned nil user")
 	}
 
 	return &models.User{

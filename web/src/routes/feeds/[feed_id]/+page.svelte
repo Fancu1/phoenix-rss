@@ -1,15 +1,18 @@
 <script>
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { authStore, feedsStore, uiStore, toast } from '$lib/stores.js';
-	import { feeds, articles as articleApi } from '$lib/api.js';
-	import NavBar from '$lib/components/NavBar.svelte';
-	import SideBar from '$lib/components/SideBar.svelte';
-	import ArticleCard from '$lib/components/ArticleCard.svelte';
+	import { articles as articleApi, feeds } from '$lib/api.js';
 	import AddSubscriptionModal from '$lib/components/AddSubscriptionModal.svelte';
-	import Modal from '$lib/components/Modal.svelte';
+	import ArticleCard from '$lib/components/ArticleCard.svelte';
 	import ArticleReaderModal from '$lib/components/ArticleReaderModal.svelte';
+	import Modal from '$lib/components/Modal.svelte';
+	import NavBar from '$lib/components/NavBar.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
+	import SideBar from '$lib/components/SideBar.svelte';
+	import { authStore, feedsStore, toast, uiStore } from '$lib/stores.js';
+	import { onMount } from 'svelte';
+
+	const PAGE_SIZE = 8;
 
 	let showAddModal = false;
 	let showUnsubscribeModal = false;
@@ -23,7 +26,21 @@
 	let readerArticle = null;
 	let readerArticleId = null;
 
+	// Pagination state
+	let pagination = {
+		page: 1,
+		pageSize: PAGE_SIZE,
+		total: 0,
+		totalPages: 0
+	};
+
 	$: feedId = parseInt($page.params.feed_id);
+
+	// Derive current page from URL for refresh persistence
+	$: currentPage = parseInt($page.url.searchParams.get('page')) || 1;
+
+	// Track previous feedId to detect feed changes
+	let prevFeedId = null;
 
 	// Find current feed from the store
 	$: currentFeed = $feedsStore.find(feed => feed.id === feedId);
@@ -51,9 +68,20 @@
 		loading = false;
 	});
 
-	// Watch for feed changes
+	// Watch for feed or page changes - reset page when feed changes
 	$: if (feedId && $authStore.status === 'authenticated' && !loading) {
-		loadArticles();
+		// Detect feed change: reset to page 1 and load articles
+		if (prevFeedId !== null && prevFeedId !== feedId) {
+			// Reset URL to page 1 without triggering another load
+			const currentUrl = new URL($page.url);
+			currentUrl.searchParams.delete('page');
+			goto(currentUrl.pathname + currentUrl.search, { replaceState: true, noScroll: true });
+			// Load articles for the new feed
+			loadArticles(1);
+		} else {
+			loadArticles(currentPage);
+		}
+		prevFeedId = feedId;
 	}
 
 	async function loadFeedsAndArticles() {
@@ -64,8 +92,8 @@
 				feedsStore.setFeeds(feedList);
 			}
 			
-			// Load articles for this feed
-			await loadArticles();
+			// Load articles for this feed with current page from URL
+			await loadArticles(currentPage);
 		} catch (error) {
 			console.error('Failed to load data:', error);
 			if (error.status === 404) {
@@ -75,13 +103,20 @@
 		}
 	}
 
-	async function loadArticles() {
+	async function loadArticles(page = 1) {
 		if (!feedId) return;
 		
 		try {
 			fetchingArticles = true;
-			const articleList = await feeds.getArticles(feedId);
-			feedArticles = articleList;
+			const response = await feeds.getArticles(feedId, { page, pageSize: PAGE_SIZE });
+			feedArticles = response.items;
+			// Map snake_case API response to camelCase frontend state
+			pagination = {
+				page: response.pagination.page,
+				pageSize: response.pagination.page_size,
+				total: response.pagination.total,
+				totalPages: response.pagination.total_pages
+			};
 		} catch (error) {
 			console.error('Failed to load articles:', error);
 			if (error.status === 404) {
@@ -93,6 +128,21 @@
 		} finally {
 			fetchingArticles = false;
 		}
+	}
+
+	function goToPage(targetPage) {
+		// Update URL which triggers reactive load via currentPage
+		const currentUrl = new URL($page.url);
+		if (targetPage === 1) {
+			currentUrl.searchParams.delete('page');
+		} else {
+			currentUrl.searchParams.set('page', targetPage.toString());
+		}
+		goto(currentUrl.pathname + currentUrl.search, { replaceState: false, noScroll: true });
+	}
+
+	function handlePageChange(event) {
+		goToPage(event.detail.page);
 	}
 
 	async function openArticleReader(event) {
@@ -149,9 +199,9 @@
 			await feeds.fetch(feedId);
 			toast.success('Feed fetch requested. Articles will update shortly.');
 			
-			// Auto-refresh articles after a short delay
+			// Auto-refresh articles after a short delay, go to first page to see new articles
 			setTimeout(async () => {
-				await loadArticles();
+				goToPage(1);
 			}, 3000);
 		} catch (error) {
 			toast.error('Failed to fetch feed');
@@ -217,7 +267,7 @@
 								</p>
 								<div class="feed-meta">
 									<span class="article-count">
-									{feedArticles.length} article{feedArticles.length === 1 ? '' : 's'}
+									{pagination.total} article{pagination.total === 1 ? '' : 's'}
 									</span>
 									{#if currentFeed.updated_at}
 										<span class="feed-separator">•</span>
@@ -293,6 +343,15 @@
 									<ArticleCard {article} on:open={openArticleReader} />
 									{/each}
 								</div>
+
+								<!-- Pagination -->
+								<Pagination
+									page={pagination.page}
+									totalPages={pagination.totalPages}
+									total={pagination.total}
+									pageSize={pagination.pageSize}
+									on:pageChange={handlePageChange}
+								/>
 							{/if}
 						</div>
 					</div>
