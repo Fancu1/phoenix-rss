@@ -1,40 +1,96 @@
 # Phoenix RSS
 
-A modern, AI-powered RSS aggregator built on a scalable microservice architecture in Go. Phoenix RSS is engineered to showcase production-ready patterns for distributed systems, including an event-driven core and a seamlessly integrated web UI.
+[中文文档](./README-zh.md)
 
-## Core Features
+A modern, AI-powered RSS aggregator built with Go microservices. This project demonstrates patterns for event-driven systems with LLM integration, featuring asynchronous processing via Kafka and a seamlessly integrated web UI, and is intended as a personal side project and reference implementation.
 
--   **Microservice Architecture**: A suite of independent, single-responsibility services (API Gateway, User, Feed, AI, Scheduler) communicating over gRPC for high performance.
--   **Integrated Web UI**: A fast, modern SvelteKit frontend is embedded directly into the API Gateway, delivering a complete application experience in a single, easy-to-deploy binary.
--   **AI-Powered Content Processing**: Leverages Large Language Models via Kafka events to automatically process and summarize article content, enhancing discoverability.
--   **Background Article Refresh**: Scheduler-driven article checks use conditional HTTP requests (ETag / Last-Modified) to refresh content only when sources change, respecting robots.txt and publishing work to Kafka for resilient processing.
--   **Event-Driven Core**: Uses Kafka for asynchronous, decoupled communication between services, ensuring resilience and scalability.
--   **Containerized & Production-Ready**: Fully containerized with Docker and orchestrated via Docker Compose, featuring healthchecks and automated initialization.
+RSS feeds often contain overwhelming amounts of content. Phoenix RSS uses AI to automatically summarize and extract metadata from articles, helping you focus on what matters.
+
+## Features
+
+-   **Microservice Architecture**: Independent, single-responsibility services (API Gateway, User, Feed, AI, Scheduler) communicating over gRPC.
+-   **Event-Driven Pipeline**: Kafka-based asynchronous processing with scheduler-driven feed refresh, conditional HTTP requests (ETag/Last-Modified), and robots.txt compliance.
+-   **AI-Powered Summarization**: Automatic article summarization and metadata extraction via LLM, triggered through Kafka events.
+-   **Integrated Web UI**: SvelteKit frontend embedded directly into the API Gateway.
+-   **Containerized Deployment**: Docker Compose orchestration with healthchecks and automated initialization.
+
+## Architecture
+
+The API Gateway exposes HTTP endpoints and embeds the SvelteKit frontend. Internal services communicate via gRPC. Asynchronous workflows (feed refresh, AI processing) flow through Kafka, with the scheduler publishing tasks and workers consuming them. PostgreSQL handles persistence while Redis provides caching.
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        WEB[Web Browser]
+    end
+
+    subgraph "API Gateway"
+        API[api-service<br/>Gin HTTP + Embedded SvelteKit]
+    end
+
+    subgraph "Core Services"
+        USER[user-service<br/>gRPC]
+        FEED[feed-service<br/>gRPC + Kafka Consumer]
+    end
+
+    subgraph "Background Services"
+        SCHED[scheduler-service<br/>Cron + Kafka Producer]
+        AI[ai-service<br/>Kafka Consumer]
+    end
+
+    subgraph "Data Layer"
+        PG[(PostgreSQL)]
+        REDIS[(Redis<br/>Feeds Cache)]
+    end
+
+    subgraph "Event Bus"
+        KAFKA[Kafka]
+    end
+
+    WEB -->|HTTP/REST| API
+    API -.->|gRPC| USER
+    API -.->|gRPC| FEED
+    API --> REDIS
+    API --> PG
+    
+    SCHED --> KAFKA
+    KAFKA <--> FEED
+    KAFKA <--> AI
+    
+    USER --> PG
+    FEED --> PG
+    
+    SCHED -.->|gRPC| FEED
+
+    style API fill:#4A90E2
+    style KAFKA fill:#231F20
+    style PG fill:#336791
+    style REDIS fill:#DC382D
+```
+
+## Services
+
+| Service           | Responsibility                                      |
+|-------------------|-----------------------------------------------------|
+| api-service       | HTTP API gateway, auth, embeds and serves frontend |
+| user-service      | User registration, login, JWT issuing/validation   |
+| feed-service      | Feed management, RSS fetching, article storage     |
+| scheduler-service | Cron-based jobs that publish feed/article events   |
+| ai-service        | Consumes new articles and produces AI summaries    |
+
 
 ## Tech Stack
 
-| Category                  | Technology                               |
-| ------------------------- | ---------------------------------------- |
-| Language                  | Go                                       |
-| API Gateway & Web Serving | Gin                                      |
-| Frontend                  | SvelteKit (via `adapter-static`)         |
-| Service Communication     | gRPC + Protocol Buffers                  |
-| Database                  | PostgreSQL                               |
-| Event Bus / Messaging     | Kafka                                    |
-| Containerization          | Docker & Docker Compose                  |
-
-## Project Structure
-
-```
-.
-├── web/                  # SvelteKit frontend application
-├── cmd/                  # Application entry points for each service
-├── internal/             # Private application and library code
-├── docker/               # Per-service Dockerfiles
-├── protos/               # Protocol Buffer definitions
-├── db/                   # Database migrations
-└── docker-compose.yml    # Docker Compose orchestration
-```
+| Category              | Technology                       |
+| --------------------- | -------------------------------- |
+| Language              | Go                               |
+| API Gateway           | Gin                              |
+| Frontend              | SvelteKit (`adapter-static`)     |
+| Service Communication | gRPC + Protocol Buffers          |
+| Database              | PostgreSQL                       |
+| Caching               | Redis                            |
+| Event Bus             | Kafka                            |
+| Containerization      | Docker & Docker Compose          |
 
 ## Usage
 
@@ -85,22 +141,21 @@ docker compose up -d feed-service
 docker compose up --build -d
 ```
 
-## Development
+### Admin CLI
 
-For local development without Docker:
+A `phoenix-admin` CLI tool is bundled for managing articles, viewing statistics, and triggering AI processing.
 
-```bash
-# Start infrastructure only
-make infra-up
+## Limitations
 
-# Run migrations
-make migrate-up
+-   AI features depend on an external LLM provider (API key required, usage billed by the provider).
+-   Auth is basic (JWT only, no RBAC or multi-tenancy)
+-   Observability limited to structured logging (no distributed tracing or metrics)
+-   Not load-tested for high-traffic scenarios
+-   Single-cluster deployment design (no multi-region strategy)
 
-# Run individual services
-make run-api-service
-make run-user-service
-make run-feed-service
+## Roadmap
 
-# Run tests
-make test
-```
+- [ ] OpenTelemetry integration (distributed tracing + metrics)
+- [ ] Kubernetes deployment manifests (Helm / Kustomize)
+- [ ] Full-text search via PostgreSQL
+- [ ] Enhanced multi-user support (registration flow, basic RBAC)
