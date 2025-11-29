@@ -63,7 +63,7 @@ graph TB
     SCHED -.->|gRPC| FEED
 
     style API fill:#4A90E2
-    style KAFKA fill:#231F20
+    style KAFKA fill:#FF6B35
     style PG fill:#336791
     style REDIS fill:#DC382D
 ```
